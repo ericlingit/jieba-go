@@ -8,7 +8,32 @@ import (
 	"testing"
 )
 
+const dictSize = 60_101_967
+
 var prefixDictionary = loadPrefixDictionaryFromGob()
+
+func TestFindDAGPath(t *testing.T) {
+	text := "今天天氣很好"
+	dag := map[int][]int{
+		0: {1, 2}, // 今, 今天
+		1: {2, 3}, // 天, 天天
+		2: {3},    // 天
+		3: {4},    // 氣
+		4: {5},    // 很
+		5: {6},    // 好
+	}
+	want := [][2]int{
+		{0, 2}, // text[0:2] = 今天
+		{2, 3}, // text[2:3] = 天
+		{3, 4}, // text[3:4] = 氣
+		{4, 5}, // text[4:5] = 很
+		{5, 6}, // text[5:6] = 好
+	}
+	got := findDAGPath(text, dag, prefixDictionary, dictSize)
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
 
 func TestBuildDAG(t *testing.T) {
 	text1 := "今天天氣很好"

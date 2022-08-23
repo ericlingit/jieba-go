@@ -1,6 +1,7 @@
 package tokenizer
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -90,4 +91,55 @@ func buildDAG(text string, prefixDictionary map[string]uint) map[int][]int {
 		}
 	}
 	return dag
+}
+
+// Calculate the log probability of each DAG path (piece),
+// and return the best path for each rune in `text`.
+func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]uint, dictSize int) [][2]int {
+	total := math.Log(float64(dictSize))
+	dagProba := map[int]map[int]float64{}
+
+	// Iterate through `textRunes` in reverse.
+	textRunes := []rune(text)
+	for i := len(textRunes) - 1; i >= 0; i-- {
+		dagProba[i] = map[int]float64{}
+		for _, j := range dag[i] {
+			// Calculate current piece's probability.
+			// piece_frequency = log(prefix_dictionary.get(piece) or 1.0) - total
+			// piece_proba = piece_frequency + next_piece_proba
+			tf := 1.0
+			if val, found := prefixDictionary[string(textRunes[i:j])]; found {
+				tf = float64(val)
+			}
+			pieceFreq := math.Log(tf) - total
+
+			// Get next piece's probability.
+			nextPiece := map[int]float64{j: 0.0}
+			if val, found := dagProba[j]; found {
+				nextPiece = val
+			}
+			for _, nextPieceFreq := range nextPiece {
+				pieceProba := pieceFreq + nextPieceFreq
+				dagProba[i][j] = pieceProba
+			}
+			// fmt.Println(i, j)
+		}
+	}
+
+	// Keep paths with the highest log probability.
+	bestPath := [][2]int{}
+	bestJ := 0
+	for i := 0; i < len(textRunes); i = bestJ {
+		bestProba := math.SmallestNonzeroFloat64
+		for j, proba := range dagProba[i] {
+			bestJ = j
+			if proba > bestProba {
+				bestProba = proba
+				bestJ = j
+			}
+		}
+		bestPath = append(bestPath, [2]int{i, bestJ})
+		// fmt.Println(i, bestJ)
+	}
+	return bestPath
 }
