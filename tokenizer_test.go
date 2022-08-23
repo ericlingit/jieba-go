@@ -179,7 +179,7 @@ func loadPrefixDictionaryFromGob() map[string]int {
 	pfDict := map[string]int{}
 	decoder := gob.NewDecoder(gobFile)
 	if err := decoder.Decode(&pfDict); err != nil {
-		panic(fmt.Sprintf("failed to encode pfDict: %v", err))
+		panic(fmt.Sprintf("failed to decode pfDict: %v", err))
 	}
 
 	return pfDict
