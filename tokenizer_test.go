@@ -13,26 +13,75 @@ const dictSize = 60_101_967
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
 func TestFindDAGPath(t *testing.T) {
-	text := "今天天氣很好"
-	dag := map[int][]int{
-		0: {1, 2}, // 今, 今天
-		1: {2, 3}, // 天, 天天
-		2: {3},    // 天
-		3: {4},    // 氣
-		4: {5},    // 很
-		5: {6},    // 好
-	}
-	want := [][2]int{
-		{0, 2}, // text[0:2] = 今天
-		{2, 3}, // text[2:3] = 天
-		{3, 4}, // text[3:4] = 氣
-		{4, 5}, // text[4:5] = 很
-		{5, 6}, // text[5:6] = 好
-	}
-	got := findDAGPath(text, dag, prefixDictionary, dictSize)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
+	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
+		text := "今天天氣很好"
+		dag := map[int][]int{
+			0: {1, 2}, // 今, 今天
+			1: {2, 3}, // 天, 天天
+			2: {3},    // 天
+			3: {4},    // 氣
+			4: {5},    // 很
+			5: {6},    // 好
+		}
+		want := [][2]int{
+			{0, 2}, // text[0:2] = 今天
+			{2, 3}, // text[2:3] = 天
+			{3, 4}, // text[3:4] = 氣
+			{4, 5}, // text[4:5] = 很
+			{5, 6}, // text[5:6] = 好
+		}
+		got := findDAGPath(text, dag, prefixDictionary, dictSize)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
+
+	t.Run("find DAG path: 我昨天去上海交通大學與老師討論量子力學", func(t *testing.T) {
+		text := "我昨天去上海交通大學與老師討論量子力學"
+		dag := map[int][]int{
+			0:  {1},
+			1:  {2, 3}, // 昨 昨天
+			2:  {3},
+			3:  {4},
+			4:  {5, 6}, // 上 上海
+			5:  {6},
+			6:  {7},
+			7:  {8},
+			8:  {9},
+			9:  {10},
+			10: {11},
+			11: {12},
+			12: {13},
+			13: {14},
+			14: {15},
+			15: {16, 17}, // 量 量子
+			16: {17, 18}, // 子 子力
+			17: {18},
+			18: {19},
+		}
+		want := [][2]int{
+			{0, 1},
+			{1, 3},
+			{3, 4},
+			{4, 6},
+			{6, 7},
+			{7, 8},
+			{8, 9},
+			{9, 10},
+			{10, 11},
+			{11, 12},
+			{12, 13},
+			{13, 14},
+			{14, 15},
+			{15, 17},
+			{17, 18},
+			{18, 19},
+		}
+		got := findDAGPath(text, dag, prefixDictionary, dictSize)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
 }
 
 func TestBuildDAG(t *testing.T) {

@@ -132,11 +132,11 @@ func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]uin
 	for i := 0; i < len(textRunes); i = bestJ {
 		bestProba := math.SmallestNonzeroFloat64
 		for j, proba := range dagProba[i] {
-			bestJ = j
 			if proba > bestProba {
 				bestProba = proba
 				bestJ = j
 			}
+			bestJ = j
 		}
 		bestPath = append(bestPath, [2]int{i, bestJ})
 		// fmt.Println(i, bestJ)
