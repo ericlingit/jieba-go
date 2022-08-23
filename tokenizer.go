@@ -55,3 +55,39 @@ func buildPrefixDictionary(dictionaryLines []string) (map[string]uint, error) {
 	}
 	return prefixDict, nil
 }
+
+// Build a DAG out of every rune:rune+N piece from text string.
+// The returned DAG's index values are based on []rune(text).
+func buildDAG(text string, prefixDictionary map[string]uint) map[int][]int {
+	// Get the index of RUNES that are found in the prefix
+	// dictionary. If not found, save the rune slice as is.
+	textRunes := []rune(text)
+	pieces := [][2]int{}
+	for i, iRune := range textRunes {
+		if _, found := prefixDictionary[string(iRune)]; !found {
+			pieces = append(pieces, [2]int{i, i + 1})
+			continue
+		}
+		for j := range textRunes[i:] {
+			part := textRunes[i : j+1+i]
+			val, found := prefixDictionary[string(part)]
+			if !found {
+				break
+			}
+			if val > 0 {
+				pieces = append(pieces, [2]int{i, j + 1 + i})
+			}
+		}
+	}
+
+	dag := map[int][]int{}
+	for _, p := range pieces {
+		val, found := dag[p[0]]
+		if !found {
+			dag[p[0]] = []int{p[1]}
+		} else {
+			dag[p[0]] = append(val, p[1])
+		}
+	}
+	return dag
+}
