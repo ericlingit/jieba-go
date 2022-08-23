@@ -95,8 +95,7 @@ func buildDAG(text string, prefixDictionary map[string]uint) map[int][]int {
 
 // Calculate the log probability of each DAG path (piece),
 // and return the best path for each rune in `text`.
-// As the case with buildDAG(), the returned value's index
-// are based on []rune(text).
+// The return value's index are based on []rune(text).
 func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]uint, dictSize int) [][2]int {
 	total := math.Log(float64(dictSize))
 	dagProba := map[int]map[int]float64{}
