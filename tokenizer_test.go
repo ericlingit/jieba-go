@@ -140,7 +140,7 @@ func TestBuildPrefixDict(t *testing.T) {
 		"江南style 3 n",
 		"江南 4986 ns",
 	}
-	want := map[string]uint{
+	want := map[string]int{
 		"A":       0,
 		"AT":      0,
 		"AT&":     0,
@@ -169,14 +169,14 @@ func TestBuildPrefixDict(t *testing.T) {
 }
 
 // Load a prefix dictionary created from jieba's dict.txt.
-func loadPrefixDictionaryFromGob() map[string]uint {
+func loadPrefixDictionaryFromGob() map[string]int {
 	// Read gob file.
 	gobFile, err := os.Open("prefix_dictionary.gob")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create a gob file: %v", err))
 	}
 	// Decode to pfDict map.
-	pfDict := map[string]uint{}
+	pfDict := map[string]int{}
 	decoder := gob.NewDecoder(gobFile)
 	if err := decoder.Decode(&pfDict); err != nil {
 		panic(fmt.Sprintf("failed to encode pfDict: %v", err))

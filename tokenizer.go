@@ -34,8 +34,8 @@ For example:
 	"大學":  4,
 }
 */
-func buildPrefixDictionary(dictionaryLines []string) (map[string]uint, error) {
-	prefixDict := map[string]uint{}
+func buildPrefixDictionary(dictionaryLines []string) (map[string]int, error) {
+	prefixDict := map[string]int{}
 	for _, line := range dictionaryLines {
 		parts := strings.SplitN(line, " ", 3)
 		word := parts[0]
@@ -52,14 +52,14 @@ func buildPrefixDictionary(dictionaryLines []string) (map[string]uint, error) {
 				prefixDict[piece] = 0
 			}
 		}
-		prefixDict[word] = uint(count)
+		prefixDict[word] = count
 	}
 	return prefixDict, nil
 }
 
 // Build a DAG out of every rune:rune+N piece from text string.
 // The returned DAG's index values are based on []rune(text).
-func buildDAG(text string, prefixDictionary map[string]uint) map[int][]int {
+func buildDAG(text string, prefixDictionary map[string]int) map[int][]int {
 	// Get the index of RUNES that are found in the prefix
 	// dictionary. If not found, save the rune slice as is.
 	textRunes := []rune(text)
@@ -96,7 +96,7 @@ func buildDAG(text string, prefixDictionary map[string]uint) map[int][]int {
 // Calculate the log probability of each DAG path (piece),
 // and return the best path for each rune in `text`.
 // The return value's index are based on []rune(text).
-func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]uint, dictSize int) [][2]int {
+func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]int, dictSize int) [][2]int {
 	total := math.Log(float64(dictSize))
 	dagProba := map[int]map[int]float64{}
 
