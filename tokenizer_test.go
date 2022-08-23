@@ -11,19 +11,50 @@ import (
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
 func TestBuildDAG(t *testing.T) {
-	text := "今天天氣很好"
-	want := map[int][]int{
-		0: {1, 2}, // text[0:1], text[0:2] == 今, 今天
-		1: {2, 3}, // text[1:2], text[1:3] == 天, 天天
-		2: {3},    // text[2:3] == 天
-		3: {4},    // text[3:4] == 氣
-		4: {5},    // text[4:5] == 很
-		5: {6},    // text[5:6] == 好
-	}
-	got := buildDAG(text, prefixDictionary)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
+	text1 := "今天天氣很好"
+	t.Run(fmt.Sprintf("DAG %s", text1), func(t *testing.T) {
+		want := map[int][]int{
+			0: {1, 2}, // text[0:1], text[0:2] == 今, 今天
+			1: {2, 3}, // text[1:2], text[1:3] == 天, 天天
+			2: {3},    // text[2:3] == 天
+			3: {4},    // text[3:4] == 氣
+			4: {5},    // text[4:5] == 很
+			5: {6},    // text[5:6] == 好
+		}
+		got := buildDAG(text1, prefixDictionary)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
+
+	text2 := "我昨天去上海交通大學與老師討論量子力學"
+	t.Run(fmt.Sprintf("DAG %s", text2), func(t *testing.T) {
+		want := map[int][]int{
+			0:  {1},
+			1:  {2, 3}, // 昨 昨天
+			2:  {3},
+			3:  {4},
+			4:  {5, 6}, // 上 上海
+			5:  {6},
+			6:  {7, 8}, // 交 交通
+			7:  {8},
+			8:  {9},
+			9:  {10},
+			10: {11},
+			11: {12},
+			12: {13},
+			13: {14},
+			14: {15},
+			15: {16, 17}, // 量 量子
+			16: {17, 18}, // 子 子力
+			17: {18},
+			18: {19},
+		}
+		got := buildDAG(text2, prefixDictionary)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
 }
 
 func TestBuildPrefixDict(t *testing.T) {
