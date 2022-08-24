@@ -179,6 +179,7 @@ func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]int
 	return findBestPath(text, dagProba)
 }
 
+// Find the path with the highest probability.
 func findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
 	textRunes := []rune(text)
 
@@ -191,10 +192,10 @@ func findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
 	return bestPath
 }
 
+// Return the map key whose value has the highest float.
 func maxProbaIndex(probaIndex map[int]float64) int {
 	bestIndex := -1
 	bestProba := -3.14e100
-
 	for i, proba := range probaIndex {
 		if proba > bestProba {
 			bestProba = proba
