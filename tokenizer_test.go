@@ -298,6 +298,27 @@ func TestInitialize(t *testing.T) {
 			t.Errorf("want %v for dictSize, got %v", wantSize, tk.dictSize)
 		}
 	})
+
+	t.Run("without custom dictionary", func(t *testing.T) {
+		tk := Tokenizer{}
+		tk.initialize()
+		if tk.initOk != true {
+			t.Errorf("initialize failed")
+		}
+
+		// Sample the first 100 items.
+		i := 100
+		for k, wantCount := range prefixDictionary {
+			gotCount := tk.prefixDict[k]
+			if wantCount != gotCount {
+				t.Errorf("bad prefix dictionary. %q wants %d, got %d", k, wantCount, gotCount)
+			}
+			if i <= 0 {
+				break
+			}
+			i--
+		}
+	})
 }
 
 // Load a prefix dictionary created from jieba's dict.txt.
