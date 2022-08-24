@@ -188,6 +188,11 @@ func TestMaxProbaIndex(t *testing.T) {
 }
 
 func TestBuildDAG(t *testing.T) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
 	text1 := "今天天氣很好"
 	t.Run(fmt.Sprintf("DAG %s", text1), func(t *testing.T) {
 		want := map[int][]int{
@@ -198,7 +203,7 @@ func TestBuildDAG(t *testing.T) {
 			4: {5},    // text[4:5] == 很
 			5: {6},    // text[5:6] == 好
 		}
-		got := buildDAG(text1, prefixDictionary)
+		got := tk.buildDAG(text1)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -227,7 +232,7 @@ func TestBuildDAG(t *testing.T) {
 			17: {18},
 			18: {19},
 		}
-		got := buildDAG(text2, prefixDictionary)
+		got := tk.buildDAG(text2)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}

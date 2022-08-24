@@ -121,19 +121,19 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 
 // Build a DAG out of every rune:rune+N piece from text string.
 // The returned DAG's index values are based on []rune(text).
-func buildDAG(text string, prefixDictionary map[string]int) map[int][]int {
+func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 	// Get the index of RUNES that are found in the prefix
 	// dictionary. If not found, save the rune slice as is.
 	textRunes := []rune(text)
 	pieces := [][2]int{}
 	for i, iRune := range textRunes {
-		if _, found := prefixDictionary[string(iRune)]; !found {
+		if _, found := tk.prefixDict[string(iRune)]; !found {
 			pieces = append(pieces, [2]int{i, i + 1})
 			continue
 		}
 		for j := range textRunes[i:] {
 			part := textRunes[i : j+1+i]
-			val, found := prefixDictionary[string(part)]
+			val, found := tk.prefixDict[string(part)]
 			if !found {
 				break
 			}
