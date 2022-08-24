@@ -1,10 +1,58 @@
 package tokenizer
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 )
+
+type Tokenizer struct {
+	// prefixDict map[string]int
+	// dictSize   int
+	startP map[string]float64
+	transP map[string]map[string]float64
+	emitP  map[string]map[string]float64
+}
+
+func (tk *Tokenizer) loadHMM() {
+	tk.startP = map[string]float64{
+		"B": -0.26268660809250016,
+		"E": -3.14e100,
+		"M": -3.14e100,
+		"S": -1.4652633398537678,
+	}
+	tk.transP = map[string]map[string]float64{
+		"B": {
+			"E": -0.51082562376599,  // B->E
+			"M": -0.916290731874155, // B->M
+		},
+		"E": {
+			"B": -0.5897149736854513, // E->B
+			"S": -0.8085250474669937, // E->S
+		},
+		"M": {
+			"E": -0.33344856811948514, // M->E
+			"M": -1.2603623820268226,  // M->M
+		},
+		"S": {
+			"B": -0.7211965654669841, // S->B
+			"S": -0.6658631448798212, // S->S
+		},
+	}
+
+	jsonData, err := os.ReadFile("prob_emit.json")
+	if err != nil {
+		panic(fmt.Sprintf("failed to read prob_emit.json: %v", err))
+	}
+	// tk.emitP := map[string]map[string]float64{} // "B": {"word": -1.1, ...}, ...
+	err = json.Unmarshal(jsonData, &tk.emitP)
+	if err != nil {
+		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
+	}
+}
 
 /*Build a prefix dictionary from `dictionaryLines`.
 

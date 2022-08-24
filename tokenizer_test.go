@@ -12,6 +12,23 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestLoadHMM(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+	if tk.emitP["B"]["一"] != -3.6544978750449433 {
+		t.Error("load HMM failed")
+	}
+	if tk.emitP["M"]["一"] != -4.428158526435913 {
+		t.Error("load HMM failed")
+	}
+	if tk.emitP["E"]["一"] != -6.044987536255073 {
+		t.Error("load HMM failed")
+	}
+	if tk.emitP["S"]["一"] != -4.92368982120877 {
+		t.Error("load HMM failed")
+	}
+}
+
 func TestFindDAGPath(t *testing.T) {
 	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
 		text := "今天天氣很好"
@@ -173,7 +190,7 @@ func loadPrefixDictionaryFromGob() map[string]int {
 	// Read gob file.
 	gobFile, err := os.Open("prefix_dictionary.gob")
 	if err != nil {
-		panic(fmt.Sprintf("failed to create a gob file: %v", err))
+		panic(fmt.Sprintf("failed to open gob file: %v", err))
 	}
 	// Decode to pfDict map.
 	pfDict := map[string]int{}
