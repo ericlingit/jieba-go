@@ -176,19 +176,30 @@ func findDAGPath(text string, dag map[int][]int, prefixDictionary map[string]int
 	}
 
 	// Keep paths with the highest log probability.
+	return findBestPath(text, dagProba)
+}
+
+func findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
+	textRunes := []rune(text)
+
 	bestPath := [][2]int{}
-	bestJ := 0
-	for i := 0; i < len(textRunes); i = bestJ {
-		bestProba := math.SmallestNonzeroFloat64
-		for j, proba := range dagProba[i] {
-			if proba > bestProba {
-				bestProba = proba
-				bestJ = j
-			}
-			bestJ = j
-		}
-		bestPath = append(bestPath, [2]int{i, bestJ})
-		// fmt.Println(i, bestJ)
+	for i := 0; i < len(textRunes); {
+		j := maxProbaIndex(dagProba[i])
+		bestPath = append(bestPath, [2]int{i, j})
+		i = j
 	}
 	return bestPath
+}
+
+func maxProbaIndex(probaIndex map[int]float64) int {
+	bestIndex := -1
+	bestProba := -3.14e100
+
+	for i, proba := range probaIndex {
+		if proba > bestProba {
+			bestProba = proba
+			bestIndex = i
+		}
+	}
+	return bestIndex
 }

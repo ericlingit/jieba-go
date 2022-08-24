@@ -101,6 +101,92 @@ func TestFindDAGPath(t *testing.T) {
 	})
 }
 
+func TestFindBestPath(t *testing.T) {
+	t.Run("path1", func(t *testing.T) {
+		dagProba := map[int]map[int]float64{
+			5: {6: 1.1},         // 好
+			4: {5: 1.1},         // 很
+			3: {4: 1.1},         // 氣
+			2: {3: 1.1},         // 天
+			1: {2: 1.1, 3: 2.2}, // 天, 天天
+			0: {1: 1.1, 2: 2.2}, // 今, 今天
+		}
+		want := [][2]int{
+			{0, 2}, // 今天
+			{2, 3},
+			{3, 4},
+			{4, 5},
+			{5, 6},
+		}
+		text := "今天天氣很好"
+		got := findBestPath(text, dagProba)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
+
+	t.Run("path2", func(t *testing.T) {
+		dagProba := map[int]map[int]float64{
+			18: {19: 1.1},
+			17: {18: 1.1},
+			16: {17: 1.1, 18: 2.2}, // 子, 子力
+			15: {16: 1.1, 17: 2.2}, // 量, 量子
+			14: {15: 1.1},
+			13: {14: 1.1},
+			12: {13: 1.1},
+			11: {12: 1.1},
+			10: {11: 1.1},
+			9:  {10: 1.1},
+			8:  {9: 1.1},
+			7:  {8: 1.1},
+			6:  {7: 1.1},
+			5:  {6: 1.1},
+			4:  {5: 1.1, 6: 2.2}, // 上, 上海
+			3:  {4: 1.1},
+			2:  {3: 1.1},
+			1:  {2: 1.1, 3: 2.2}, // 昨, 昨天
+			0:  {1: 1.1},
+		}
+		want := [][2]int{
+			{0, 1},
+			{1, 3}, // 昨天
+			{3, 4},
+			{4, 6}, // 上海
+			{6, 7},
+			{7, 8},
+			{8, 9},
+			{9, 10},
+			{10, 11},
+			{11, 12},
+			{12, 13},
+			{13, 14},
+			{14, 15},
+			{15, 17}, // 量子
+			{17, 18},
+			{18, 19},
+		}
+		text := "我昨天去上海交通大學與老師討論量子力學"
+		got := findBestPath(text, dagProba)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
+}
+
+func TestMaxProbaIndex(t *testing.T) {
+	given := map[int]float64{
+		0: 0.0,
+		1: 1.1,
+		2: 2.2,
+		3: -3.3,
+	}
+	want := 2
+	got := maxProbaIndex(given)
+	if want != got {
+		t.Errorf("want %v got %v", want, got)
+	}
+}
+
 func TestBuildDAG(t *testing.T) {
 	text1 := "今天天氣很好"
 	t.Run(fmt.Sprintf("DAG %s", text1), func(t *testing.T) {
