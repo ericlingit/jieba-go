@@ -30,6 +30,11 @@ func TestLoadHMM(t *testing.T) {
 }
 
 func TestFindDAGPath(t *testing.T) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
 	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
 		text := "今天天氣很好"
 		dag := map[int][]int{
@@ -47,7 +52,7 @@ func TestFindDAGPath(t *testing.T) {
 			{4, 5}, // text[4:5] = 很
 			{5, 6}, // text[5:6] = 好
 		}
-		got := findDAGPath(text, dag, prefixDictionary, dictSize)
+		got := tk.findDAGPath(text, dag)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -94,7 +99,7 @@ func TestFindDAGPath(t *testing.T) {
 			{17, 18},
 			{18, 19},
 		}
-		got := findDAGPath(text, dag, prefixDictionary, dictSize)
+		got := tk.findDAGPath(text, dag)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}
