@@ -188,18 +188,18 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			// fmt.Println(i, j)
 		}
 	}
-
 	// Keep paths with the highest log probability.
-	return findBestPath(text, dagProba)
+	return tk.findBestPath(text, dagProba)
 }
 
 // Find the path with the highest probability.
-func findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
+// This is a helper method for findDAGPath().
+func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
 	textRunes := []rune(text)
 
 	bestPath := [][2]int{}
 	for i := 0; i < len(textRunes); {
-		j := maxProbaIndex(dagProba[i])
+		j := tk.maxProbaIndex(dagProba[i])
 		bestPath = append(bestPath, [2]int{i, j})
 		i = j
 	}
@@ -207,7 +207,8 @@ func findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
 }
 
 // Return the map key whose value has the highest float.
-func maxProbaIndex(probaIndex map[int]float64) int {
+// This is a helper method for findBestPath().
+func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 	bestIndex := -1
 	bestProba := -3.14e100
 	for i, proba := range probaIndex {

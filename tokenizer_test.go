@@ -107,6 +107,7 @@ func TestFindDAGPath(t *testing.T) {
 }
 
 func TestFindBestPath(t *testing.T) {
+	tk := Tokenizer{}
 	t.Run("path1", func(t *testing.T) {
 		dagProba := map[int]map[int]float64{
 			5: {6: 1.1},         // 好
@@ -124,7 +125,7 @@ func TestFindBestPath(t *testing.T) {
 			{5, 6},
 		}
 		text := "今天天氣很好"
-		got := findBestPath(text, dagProba)
+		got := tk.findBestPath(text, dagProba)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -171,7 +172,7 @@ func TestFindBestPath(t *testing.T) {
 			{18, 19},
 		}
 		text := "我昨天去上海交通大學與老師討論量子力學"
-		got := findBestPath(text, dagProba)
+		got := tk.findBestPath(text, dagProba)
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -179,6 +180,7 @@ func TestFindBestPath(t *testing.T) {
 }
 
 func TestMaxProbaIndex(t *testing.T) {
+	tk := Tokenizer{}
 	given := map[int]float64{
 		0: 0.0,
 		1: 1.1,
@@ -186,7 +188,7 @@ func TestMaxProbaIndex(t *testing.T) {
 		3: -3.3,
 	}
 	want := 2
-	got := maxProbaIndex(given)
+	got := tk.maxProbaIndex(given)
 	if want != got {
 		t.Errorf("want %v got %v", want, got)
 	}
