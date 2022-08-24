@@ -1,8 +1,11 @@
 package tokenizer
 
 import (
+	"bufio"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -10,48 +13,55 @@ import (
 )
 
 type Tokenizer struct {
-	// prefixDict map[string]int
-	// dictSize   int
-	startP map[string]float64
-	transP map[string]map[string]float64
-	emitP  map[string]map[string]float64
+	CustomDict string
+	initOk     bool
+	prefixDict map[string]int
+	dictSize   int
+	startP     map[string]float64
+	transP     map[string]map[string]float64
+	emitP      map[string]map[string]float64
 }
 
-func (tk *Tokenizer) loadHMM() {
-	tk.startP = map[string]float64{
-		"B": -0.26268660809250016,
-		"E": -3.14e100,
-		"M": -3.14e100,
-		"S": -1.4652633398537678,
-	}
-	tk.transP = map[string]map[string]float64{
-		"B": {
-			"E": -0.51082562376599,  // B->E
-			"M": -0.916290731874155, // B->M
-		},
-		"E": {
-			"B": -0.5897149736854513, // E->B
-			"S": -0.8085250474669937, // E->S
-		},
-		"M": {
-			"E": -0.33344856811948514, // M->E
-			"M": -1.2603623820268226,  // M->M
-		},
-		"S": {
-			"B": -0.7211965654669841, // S->B
-			"S": -0.6658631448798212, // S->S
-		},
+func (tk *Tokenizer) initialize() {
+	// Build a prefix dictionary from user-proviced dictionary
+	// file.
+	if len(tk.CustomDict) != 0 {
+		// Open & parse text file lines.
+		reader, err := os.Open(tk.CustomDict)
+		if err != nil {
+			log.Fatalf("failed to read custom dictionary file: %v", err)
+		}
+		scanner := bufio.NewScanner(reader)
+		scanner.Split(bufio.ScanLines)
+		lines := []string{}
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		reader.Close()
+
+		// Build prefix dictionary
+		pdErr := tk.buildPrefixDictionary(lines)
+		if pdErr != nil {
+			log.Fatalf("failed to build prefix dictionary: %v", pdErr)
+		}
+
+		tk.initOk = true
+		return
 	}
 
-	jsonData, err := os.ReadFile("prob_emit.json")
+	// Load pre-built prefix dictionary from gob file.
+	gobFile, err := os.Open("prefix_dictionary.gob")
 	if err != nil {
-		panic(fmt.Sprintf("failed to read prob_emit.json: %v", err))
+		log.Fatalf("failed to open gob file: %v", err)
 	}
-	// tk.emitP := map[string]map[string]float64{} // "B": {"word": -1.1, ...}, ...
-	err = json.Unmarshal(jsonData, &tk.emitP)
-	if err != nil {
-		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
+	// Decode to pfDict map.
+	pfDict := map[string]int{}
+	decoder := gob.NewDecoder(gobFile)
+	if err := decoder.Decode(&pfDict); err != nil {
+		log.Fatalf("failed to decode pfDict: %v", err)
 	}
+	tk.prefixDict = pfDict
+	tk.initOk = true
 }
 
 /*Build a prefix dictionary from `dictionaryLines`.
@@ -82,15 +92,17 @@ For example:
 	"大學":  4,
 }
 */
-func buildPrefixDictionary(dictionaryLines []string) (map[string]int, error) {
+func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 	prefixDict := map[string]int{}
+	total := 0
 	for _, line := range dictionaryLines {
 		parts := strings.SplitN(line, " ", 3)
 		word := parts[0]
 		count, err := strconv.Atoi(parts[1])
 		if err != nil {
-			return nil, err
+			return err
 		}
+		total += count
 
 		piece := ""
 		for _, char := range word {
@@ -102,7 +114,9 @@ func buildPrefixDictionary(dictionaryLines []string) (map[string]int, error) {
 		}
 		prefixDict[word] = count
 	}
-	return prefixDict, nil
+	tk.prefixDict = prefixDict
+	tk.dictSize = total
+	return nil
 }
 
 // Build a DAG out of every rune:rune+N piece from text string.
@@ -203,4 +217,41 @@ func maxProbaIndex(probaIndex map[int]float64) int {
 		}
 	}
 	return bestIndex
+}
+
+func (tk *Tokenizer) loadHMM() {
+	tk.startP = map[string]float64{
+		"B": -0.26268660809250016,
+		"E": -3.14e100,
+		"M": -3.14e100,
+		"S": -1.4652633398537678,
+	}
+	tk.transP = map[string]map[string]float64{
+		"B": {
+			"E": -0.51082562376599,  // B->E
+			"M": -0.916290731874155, // B->M
+		},
+		"E": {
+			"B": -0.5897149736854513, // E->B
+			"S": -0.8085250474669937, // E->S
+		},
+		"M": {
+			"E": -0.33344856811948514, // M->E
+			"M": -1.2603623820268226,  // M->M
+		},
+		"S": {
+			"B": -0.7211965654669841, // S->B
+			"S": -0.6658631448798212, // S->S
+		},
+	}
+
+	jsonData, err := os.ReadFile("prob_emit.json")
+	if err != nil {
+		panic(fmt.Sprintf("failed to read prob_emit.json: %v", err))
+	}
+	// tk.emitP := map[string]map[string]float64{} // "B": {"word": -1.1, ...}, ...
+	err = json.Unmarshal(jsonData, &tk.emitP)
+	if err != nil {
+		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
+	}
 }

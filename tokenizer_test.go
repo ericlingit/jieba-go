@@ -235,6 +235,7 @@ func TestBuildDAG(t *testing.T) {
 }
 
 func TestBuildPrefixDict(t *testing.T) {
+	tk := Tokenizer{}
 	input := []string{
 		"AT&T 3 nz",
 		"B超 3 n",
@@ -262,13 +263,41 @@ func TestBuildPrefixDict(t *testing.T) {
 		"江南styl":  0,
 		"江南style": 3,
 	}
-	got, err := buildPrefixDictionary(input)
+	err := tk.buildPrefixDictionary(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
+	if !reflect.DeepEqual(want, tk.prefixDict) {
+		t.Errorf("want %v, got %v", want, tk.prefixDict)
 	}
+}
+
+func TestInitialize(t *testing.T) {
+	t.Run("with custom dictionary", func(t *testing.T) {
+		f, _ := os.CreateTemp("", "aaa.txt")
+		defer os.Remove(f.Name())
+		f.Write([]byte("今天 10 x\n天氣 3\n"))
+
+		tk := Tokenizer{}
+		tk.CustomDict = f.Name()
+		tk.initialize()
+		if tk.initOk != true {
+			t.Errorf("initialize failed")
+		}
+		want := map[string]int{
+			"今":  0,
+			"今天": 10,
+			"天":  0,
+			"天氣": 3,
+		}
+		if !reflect.DeepEqual(want, tk.prefixDict) {
+			t.Errorf("want %v, got %v", want, tk.prefixDict)
+		}
+		wantSize := 13
+		if wantSize != tk.dictSize {
+			t.Errorf("want %v for dictSize, got %v", wantSize, tk.dictSize)
+		}
+	})
 }
 
 // Load a prefix dictionary created from jieba's dict.txt.
