@@ -256,3 +256,20 @@ func (tk *Tokenizer) loadHMM() {
 		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
 	}
 }
+
+func (tk *Tokenizer) stateTransition(step int, nowState string, hiddenStates map[int]map[string]float64) map[string]float64 {
+	stateChange := map[string][]string{
+		"B": {"E", "S"}, // E->B, S->B
+		"M": {"B", "M"},
+		"E": {"B", "M"},
+		"S": {"E", "S"},
+	}
+
+	routes := map[string]float64{}
+	for _, prevState := range stateChange[nowState] {
+		prevProb := hiddenStates[step-1][prevState]
+		routeProb := prevProb + tk.transP[prevState][nowState]
+		routes[prevState] = routeProb
+	}
+	return routes
+}
