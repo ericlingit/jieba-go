@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const MinFloat float64 = -3.14e100
+
 type Tokenizer struct {
 	CustomDict string
 	initOk     bool
@@ -210,7 +212,7 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64)
 // This is a helper method for findBestPath().
 func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 	bestIndex := -1
-	bestProba := -3.14e100
+	bestProba := MinFloat
 	for i, proba := range probaIndex {
 		if proba > bestProba {
 			bestProba = proba
@@ -223,8 +225,8 @@ func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 func (tk *Tokenizer) loadHMM() {
 	tk.startP = map[string]float64{
 		"B": -0.26268660809250016,
-		"E": -3.14e100,
-		"M": -3.14e100,
+		"E": MinFloat,
+		"M": MinFloat,
 		"S": -1.4652633398537678,
 	}
 	tk.transP = map[string]map[string]float64{
@@ -278,7 +280,7 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 	}
 
 	bestPrevState := ""
-	bestRouteProba := -3.14e100
+	bestRouteProba := MinFloat
 	for prevState, routeProba := range routes {
 		if routeProba > bestRouteProba {
 			bestPrevState = prevState
@@ -294,18 +296,22 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	hiddenStateProba := map[int]map[string]float64{
 		0: {},
 	}
-	fullPath := map[string][]string{}
+	fullPath := map[string][]string{
+		"B": {"B"},
+		"M": {"M"},
+		"E": {"E"},
+		"S": {"S"},
+	}
 	HMMstates := []string{"B", "M", "E", "S"}
 
 	// Initial probabilities for each hidden state at rune[0]
 	for _, s := range HMMstates {
 		emit, found := tk.emitP[s][string(textRune[0])]
 		if !found {
-			emit = 0.0
+			emit = MinFloat
 		}
 		startProba := tk.startP[s] + emit
 		hiddenStateProba[0][s] = startProba
-		fullPath[s] = []string{s}
 	}
 
 	// Calculate probabilities for each hidden state from rune[1]
@@ -319,7 +325,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 			route := tk.stateTransitionRoute(i, s, hiddenStateProba)
 			emitProba, found := tk.emitP[s][string(char)]
 			if !found {
-				emitProba = 0.0
+				emitProba = MinFloat
 			}
 			stateProba := route.proba + emitProba
 			hiddenStateProba[i][s] = stateProba

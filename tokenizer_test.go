@@ -15,12 +15,24 @@ var prefixDictionary = loadPrefixDictionaryFromGob()
 func TestViterbi(t *testing.T) {
 	tk := Tokenizer{}
 	tk.loadHMM()
-	text := "大學與老師討論"
-	want := []string{"B", "E", "S", "B", "E", "B", "E"}
-	got := tk.viterbi(text)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
+
+	t.Run("viterbi case 1", func(t *testing.T) {
+		text := "天氣很好"
+		want := []string{"B", "E", "S", "S"}
+		got := tk.viterbi(text)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
+
+	t.Run("viterbi case 2", func(t *testing.T) {
+		text := "大學與老師討論"
+		want := []string{"B", "E", "S", "B", "E", "B", "E"}
+		got := tk.viterbi(text)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %v, got %v", want, got)
+		}
+	})
 }
 
 func TestStateTransitionRoute(t *testing.T) {
