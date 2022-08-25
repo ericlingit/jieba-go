@@ -32,11 +32,36 @@ func TestStateTransitionRoute(t *testing.T) {
 		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
 	}
 	step := 2
+	// routes for E->B vs S->B.
+	wantFrom := "E"
 	nowState := "B"
-	// routes for B->E vs S->E.
 	gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-	if gotRoute.from != "E" {
-		t.Errorf("route E not found in %v", gotRoute)
+	if gotRoute.from != wantFrom {
+		t.Errorf("want %v, got %v", wantFrom, gotRoute)
+	}
+
+	// routes for B->M vs M->M.
+	wantFrom = "B"
+	nowState = "M"
+	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
+	if gotRoute.from != wantFrom {
+		t.Errorf("want %v, got %v", wantFrom, gotRoute)
+	}
+
+	// routes for B->E vs M->E.
+	wantFrom = "M"
+	nowState = "E"
+	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
+	if gotRoute.from != wantFrom {
+		t.Errorf("want %v, got %v", wantFrom, gotRoute)
+	}
+
+	// routes for B->S vs M->S.
+	wantFrom = "S"
+	nowState = "S"
+	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
+	if gotRoute.from != wantFrom {
+		t.Errorf("want %v, got %v", wantFrom, gotRoute)
 	}
 }
 
