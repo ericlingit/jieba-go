@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const MinFloat float64 = -3.14e100
+const minFloat float64 = -3.14e100
 
 type Tokenizer struct {
 	CustomDict string
@@ -212,7 +212,7 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64)
 // This is a helper method for findBestPath().
 func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 	bestIndex := -1
-	bestProba := MinFloat
+	bestProba := minFloat
 	for i, proba := range probaIndex {
 		if proba > bestProba {
 			bestProba = proba
@@ -225,8 +225,8 @@ func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 func (tk *Tokenizer) loadHMM() {
 	tk.startP = map[string]float64{
 		"B": -0.26268660809250016,
-		"E": MinFloat,
-		"M": MinFloat,
+		"E": minFloat,
+		"M": minFloat,
 		"S": -1.4652633398537678,
 	}
 	tk.transP = map[string]map[string]float64{
@@ -280,7 +280,7 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 	}
 
 	bestPrevState := ""
-	bestRouteProba := MinFloat
+	bestRouteProba := minFloat
 	for prevState, routeProba := range routes {
 		if routeProba > bestRouteProba {
 			bestPrevState = prevState
@@ -308,7 +308,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	for _, s := range HMMstates {
 		emit, found := tk.emitP[s][string(textRune[0])]
 		if !found {
-			emit = MinFloat
+			emit = minFloat
 		}
 		startProba := tk.startP[s] + emit
 		hiddenStateProba[0][s] = startProba
@@ -325,7 +325,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 			route := tk.stateTransitionRoute(i, s, hiddenStateProba)
 			emitProba, found := tk.emitP[s][string(char)]
 			if !found {
-				emitProba = MinFloat
+				emitProba = minFloat
 			}
 			stateProba := route.proba + emitProba
 			hiddenStateProba[i][s] = stateProba
@@ -343,6 +343,5 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	if e < s {
 		finalState = "S"
 	}
-
 	return fullPath[finalState]
 }
