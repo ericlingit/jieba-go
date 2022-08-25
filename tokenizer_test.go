@@ -27,8 +27,8 @@ func TestStateTransitionRoute(t *testing.T) {
 	nowState := "B"
 	// routes for B->E vs S->E.
 	gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-	if _, found := gotRoute["E"]; !found {
-		t.Errorf("key E not found in %v", gotRoute)
+	if gotRoute.from != "E" {
+		t.Errorf("route E not found in %v", gotRoute)
 	}
 }
 
