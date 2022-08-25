@@ -15,7 +15,7 @@ var prefixDictionary = loadPrefixDictionaryFromGob()
 // func TestViterbi(t *testing.T) {
 // }
 
-func TestStateTransition(t *testing.T) {
+func TestStateTransitionRoute(t *testing.T) {
 	tk := Tokenizer{}
 	tk.loadHMM()
 
@@ -26,15 +26,9 @@ func TestStateTransition(t *testing.T) {
 	step := 2
 	nowState := "B"
 	// routes for B->E vs S->E.
-	gotRoutes := tk.stateTransition(step, nowState, hsProb)
-	if _, found := gotRoutes["S"]; !found {
-		t.Errorf("key S not found in %v", gotRoutes)
-	}
-	if _, found := gotRoutes["E"]; !found {
-		t.Errorf("key E not found in %v", gotRoutes)
-	}
-	if gotRoutes["E"] < gotRoutes["S"] {
-		t.Errorf("want E prob > S prob, got %v", gotRoutes)
+	gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
+	if _, found := gotRoute["E"]; !found {
+		t.Errorf("key E not found in %v", gotRoute)
 	}
 }
 

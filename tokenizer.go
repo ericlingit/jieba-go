@@ -257,7 +257,7 @@ func (tk *Tokenizer) loadHMM() {
 	}
 }
 
-func (tk *Tokenizer) stateTransition(step int, nowState string, hiddenStates map[int]map[string]float64) map[string]float64 {
+func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenStates map[int]map[string]float64) map[string]float64 {
 	stateChange := map[string][]string{
 		"B": {"E", "S"}, // E->B, S->B
 		"M": {"B", "M"},
@@ -271,5 +271,15 @@ func (tk *Tokenizer) stateTransition(step int, nowState string, hiddenStates map
 		routeProb := prevProb + tk.transP[prevState][nowState]
 		routes[prevState] = routeProb
 	}
-	return routes
+
+	bestPrevState := ""
+	bestRouteProba := -3.14e100
+	for prevState, routeProba := range routes {
+		if routeProba > bestRouteProba {
+			bestPrevState = prevState
+			bestRouteProba = routeProba
+		}
+	}
+	bestRoute := map[string]float64{bestPrevState: bestRouteProba}
+	return bestRoute
 }
