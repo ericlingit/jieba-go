@@ -12,8 +12,16 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
-// func TestViterbi(t *testing.T) {
-// }
+func TestViterbi(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+	text := "大學與老師討論"
+	want := []string{"B", "E", "S", "B", "E", "B", "E"}
+	got := tk.viterbi(text)
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
 
 func TestStateTransitionRoute(t *testing.T) {
 	tk := Tokenizer{}

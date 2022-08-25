@@ -288,3 +288,55 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 	bestRoute := transitionRoute{bestPrevState, bestRouteProba}
 	return bestRoute
 }
+
+func (tk *Tokenizer) viterbi(text string) []string {
+	textRune := []rune(text)
+	hiddenStateProba := map[int]map[string]float64{
+		0: {},
+	}
+	fullPath := map[string][]string{}
+	HMMstates := []string{"B", "M", "E", "S"}
+
+	// Initial probabilities for each hidden state at rune[0]
+	for _, s := range HMMstates {
+		emit, found := tk.emitP[s][string(textRune[0])]
+		if !found {
+			emit = 0.0
+		}
+		startProba := tk.startP[s] + emit
+		hiddenStateProba[0][s] = startProba
+		fullPath[s] = []string{s}
+	}
+
+	// Calculate probabilities for each hidden state from rune[1]
+	// to rune[-1], and find the best route in between all state
+	// transitions.
+	for i_, char := range textRune[1:] {
+		i := i_ + 1
+		hiddenStateProba[i] = map[string]float64{}
+		partialPath := map[string][]string{}
+		for _, s := range HMMstates {
+			route := tk.stateTransitionRoute(i, s, hiddenStateProba)
+			emitProba, found := tk.emitP[s][string(char)]
+			if !found {
+				emitProba = 0.0
+			}
+			stateProba := route.proba + emitProba
+			hiddenStateProba[i][s] = stateProba
+			partialPath[s] = append(partialPath[s], fullPath[route.from]...)
+			partialPath[s] = append(partialPath[s], s)
+		}
+		fullPath = partialPath
+	}
+
+	// Select the path that arrives at either E or S state,
+	// whichever has the highest hidden state.
+	e := hiddenStateProba[len(textRune)-1]["E"]
+	s := hiddenStateProba[len(textRune)-1]["S"]
+	finalState := "E"
+	if e < s {
+		finalState = "S"
+	}
+
+	return fullPath[finalState]
+}
