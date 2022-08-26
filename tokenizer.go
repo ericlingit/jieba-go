@@ -359,3 +359,17 @@ func (tk *Tokenizer) cutHMM(text string, viterbiPath []string) []string {
 	}
 	return pieces
 }
+
+func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
+	textRune := []rune(text)
+	pieces := []string{}
+	for _, dagIndex := range dagPath {
+		pieces = append(pieces, string(textRune[dagIndex[0]:dagIndex[1]]))
+	}
+	return pieces
+}
+
+// func (tk *Tokenizer) Cut(text string, hmm bool) []string {
+// 	words := []string{}
+// 	return words
+// }

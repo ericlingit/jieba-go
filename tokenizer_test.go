@@ -12,6 +12,52 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestCutDag(t *testing.T) {
+	tk := Tokenizer{}
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	tk.loadHMM()
+
+	text := "今天天氣很好"
+	dPath := [][2]int{
+		{0, 2},
+		{2, 3},
+		{3, 4},
+		{4, 5},
+		{5, 6},
+	}
+	want := []string{"今天", "天", "氣", "很", "好"}
+	got := tk.cutDAG(text, dPath)
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+
+	text = "我昨天去上海交通大學與老師討論量子力學"
+	want = []string{"我", "昨天", "去", "上海", "交", "通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
+	dPath = [][2]int{
+		{0, 1},
+		{1, 3},
+		{3, 4},
+		{4, 6},
+		{6, 7},
+		{7, 8},
+		{8, 9},
+		{9, 10},
+		{10, 11},
+		{11, 12},
+		{12, 13},
+		{13, 14},
+		{14, 15},
+		{15, 17},
+		{17, 18},
+		{18, 19},
+	}
+	got = tk.cutDAG(text, dPath)
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
+
 func TestCutHMM(t *testing.T) {
 	tk := Tokenizer{}
 	tk.loadHMM()
@@ -172,9 +218,9 @@ func TestFindDAGPath(t *testing.T) {
 		}
 		want := [][2]int{
 			{0, 1},
-			{1, 3},
+			{1, 3}, // 昨天
 			{3, 4},
-			{4, 6},
+			{4, 6}, // 上海
 			{6, 7},
 			{7, 8},
 			{8, 9},
@@ -184,7 +230,7 @@ func TestFindDAGPath(t *testing.T) {
 			{12, 13},
 			{13, 14},
 			{14, 15},
-			{15, 17},
+			{15, 17}, // 量子
 			{17, 18},
 			{18, 19},
 		}
