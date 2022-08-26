@@ -160,7 +160,7 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 // Calculate the log probability of each DAG path (piece),
 // and return the best path for each rune in `text`.
 // The return value's index are based on []rune(text).
-func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
+func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) map[int]int {
 	total := math.Log(float64(tk.dictSize))
 	dagProba := map[int]map[int]float64{}
 
@@ -196,13 +196,13 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 
 // Find the path with the highest probability.
 // This is a helper method for findDAGPath().
-func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
+func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64) map[int]int {
 	textRunes := []rune(text)
 
-	bestPath := [][2]int{}
+	bestPath := map[int]int{}
 	for i := 0; i < len(textRunes); {
 		j := tk.maxProbaIndex(dagProba[i])
-		bestPath = append(bestPath, [2]int{i, j})
+		bestPath[i] = j
 		i = j
 	}
 	return bestPath
