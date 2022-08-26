@@ -345,3 +345,17 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	}
 	return fullPath[finalState]
 }
+
+func (tk *Tokenizer) cutHMM(text string, viterbiPath []string) []string {
+	textRune := []rune(text)
+	pieces := []string{}
+	pieceStart := 0
+	for i, state := range viterbiPath {
+		pieceEnd := i + 1
+		if state == "E" || state == "S" {
+			pieces = append(pieces, string(textRune[pieceStart:pieceEnd]))
+			pieceStart = pieceEnd
+		}
+	}
+	return pieces
+}

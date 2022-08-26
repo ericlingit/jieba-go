@@ -12,6 +12,30 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestCutHMM(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+	t.Run("cut hmm 1", func(t *testing.T) {
+		text := "天氣很好"
+		vPath := []string{"B", "E", "S", "S"}
+		want := []string{"天氣", "很", "好"}
+		got := tk.cutHMM(text, vPath)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %q, got %q", want, got)
+		}
+	})
+
+	t.Run("cut hmm 2", func(t *testing.T) {
+		text := "大學與老師討論"
+		vPath := []string{"B", "E", "S", "B", "E", "B", "E"}
+		want := []string{"大學", "與", "老師", "討論"}
+		got := tk.cutHMM(text, vPath)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("want %q, got %q", want, got)
+		}
+	})
+}
+
 func TestViterbi(t *testing.T) {
 	tk := Tokenizer{}
 	tk.loadHMM()
