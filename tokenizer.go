@@ -370,7 +370,39 @@ func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 	return pieces
 }
 
-// func (tk *Tokenizer) Cut(text string, hmm bool) []string {
-// 	words := []string{}
-// 	return words
-// }
+func (tk *Tokenizer) Cut(text string, hmm bool) []string {
+	dag := tk.buildDAG(text)
+	dagPath := tk.findDAGPath(text, dag)
+	dagPieces := tk.cutDAG(text, dagPath)
+	if !hmm {
+		return dagPieces
+	}
+
+	// Use HMM to segment uncut chars in dagPieces.
+	tk.loadHMM()
+	words := []string{}
+	uncutRunes := []rune{}
+	for i, piece := range dagPieces {
+		pieceRune := []rune(piece)
+		if len(pieceRune) == 1 {
+			uncutRunes = append(uncutRunes, pieceRune[0])
+			// At the end of iteration, and have uncut runes.
+			if i+1 >= len(dagPieces) && len(uncutRunes) != 0 {
+				v := tk.viterbi(string(uncutRunes))
+				newWords := tk.cutHMM(string(uncutRunes), v)
+				words = append(words, newWords...)
+				uncutRunes = []rune{}
+			}
+		} else {
+			if len(uncutRunes) != 0 {
+				v := tk.viterbi(string(uncutRunes))
+				newWords := tk.cutHMM(string(uncutRunes), v)
+				words = append(words, newWords...)
+				uncutRunes = []rune{}
+			}
+			words = append(words, piece)
+		}
+	}
+
+	return words
+}

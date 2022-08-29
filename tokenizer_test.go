@@ -12,6 +12,37 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestCut(t *testing.T) {
+	tk := Tokenizer{}
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	tk.loadHMM()
+
+	text := "今天天氣很好"
+	t.Run("cut 1", func(t *testing.T) {
+		want := []string{"今天", "天", "氣", "很", "好"}
+		got := tk.Cut(text, false)
+		assertDeepEqual(t, want, got)
+	})
+	t.Run("cut 1 hmm", func(t *testing.T) {
+		want := []string{"今天", "天氣", "很", "好"}
+		got := tk.Cut(text, true)
+		assertDeepEqual(t, want, got)
+	})
+
+	text = "我昨天去上海交通大學與老師討論量子力學"
+	t.Run("cut 2", func(t *testing.T) {
+		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
+		got := tk.Cut(text, false)
+		assertDeepEqual(t, want, got)
+	})
+	t.Run("cut 2 hmm", func(t *testing.T) {
+		want := []string{"我", "昨天", "去", "上海", "交通", "大學", "與", "老師", "討論", "量子", "力學"}
+		got := tk.Cut(text, true)
+		assertDeepEqual(t, want, got)
+	})
+}
+
 func TestCutDag(t *testing.T) {
 	tk := Tokenizer{}
 	tk.dictSize = dictSize
