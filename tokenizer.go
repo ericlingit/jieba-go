@@ -24,6 +24,9 @@ type Tokenizer struct {
 	emitP      map[string]map[string]float64
 }
 
+// Initialize the Tokenizer. If CustomDict is specified, a prefix
+// dictionary will be built from this file. If CustomDict is not
+// specified, a pre-built prefix dictionary will be loaded.
 func (tk *Tokenizer) initialize() {
 	// Build a prefix dictionary from user-proviced dictionary
 	// file.
