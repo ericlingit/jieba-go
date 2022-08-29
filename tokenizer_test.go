@@ -18,29 +18,23 @@ func TestCut(t *testing.T) {
 	tk.prefixDict = prefixDictionary
 	tk.loadHMM()
 
-	text := "今天天氣很好"
-	t.Run("cut 1", func(t *testing.T) {
-		want := []string{"今天", "天", "氣", "很", "好"}
-		got := tk.Cut(text, false)
-		assertDeepEqual(t, want, got)
-	})
-	t.Run("cut 1 hmm", func(t *testing.T) {
-		want := []string{"今天", "天氣", "很", "好"}
-		got := tk.Cut(text, true)
-		assertDeepEqual(t, want, got)
-	})
-
-	text = "我昨天去上海交通大學與老師討論量子力學"
-	t.Run("cut 2", func(t *testing.T) {
-		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
-		got := tk.Cut(text, false)
-		assertDeepEqual(t, want, got)
-	})
-	t.Run("cut 2 hmm", func(t *testing.T) {
-		want := []string{"我", "昨天", "去", "上海", "交通", "大學", "與", "老師", "討論", "量子", "力學"}
-		got := tk.Cut(text, true)
-		assertDeepEqual(t, want, got)
-	})
+	cases := []struct {
+		name string
+		text string
+		want []string
+		hmm  bool
+	}{
+		{"cut 1", "今天天氣很好", []string{"今天", "天", "氣", "很", "好"}, false},
+		{"cut 1 hmm", "今天天氣很好", []string{"今天", "天氣", "很", "好"}, true},
+		{"cut 2", "我昨天去上海交通大學與老師討論量子力學", []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}, false},
+		{"cut 2 hmm", "我昨天去上海交通大學與老師討論量子力學", []string{"我", "昨天", "去", "上海", "交通", "大學", "與", "老師", "討論", "量子", "力學"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := tk.Cut(c.text, c.hmm)
+			assertDeepEqual(t, c.want, got)
+		})
+	}
 }
 
 func TestCutDag(t *testing.T) {
@@ -136,33 +130,22 @@ func TestStateTransitionRoute(t *testing.T) {
 		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
 	}
 	step := 2
-	t.Run("transition E->B vs S->B", func(t *testing.T) {
-		wantFrom := "E"
-		nowState := "B"
-		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-		assertEqual(t, wantFrom, gotRoute.from)
-	})
-
-	t.Run("transition B->M vs M->M", func(t *testing.T) {
-		wantFrom := "B"
-		nowState := "M"
-		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-		assertEqual(t, wantFrom, gotRoute.from)
-	})
-
-	t.Run("transition B->E vs M->E", func(t *testing.T) {
-		wantFrom := "M"
-		nowState := "E"
-		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-		assertEqual(t, wantFrom, gotRoute.from)
-	})
-
-	t.Run("transition B->S vs M->S", func(t *testing.T) {
-		wantFrom := "S"
-		nowState := "S"
-		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-		assertEqual(t, wantFrom, gotRoute.from)
-	})
+	cases := []struct {
+		name     string
+		wantFrom string
+		nowState string
+	}{
+		{"transition E->B vs S->B", "E", "B"},
+		{"transition B->M vs M->M", "B", "M"},
+		{"transition B->E vs M->E", "M", "E"},
+		{"transition B->S vs M->S", "S", "S"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotRoute := tk.stateTransitionRoute(step, c.nowState, hsProb)
+			assertEqual(t, c.wantFrom, gotRoute.from)
+		})
+	}
 }
 
 func TestLoadHMM(t *testing.T) {
