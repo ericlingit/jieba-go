@@ -16,46 +16,44 @@ func TestCutDag(t *testing.T) {
 	tk := Tokenizer{}
 	tk.dictSize = dictSize
 	tk.prefixDict = prefixDictionary
-	tk.loadHMM()
 
-	text := "今天天氣很好"
-	dPath := [][2]int{
-		{0, 2},
-		{2, 3},
-		{3, 4},
-		{4, 5},
-		{5, 6},
-	}
-	want := []string{"今天", "天", "氣", "很", "好"}
-	got := tk.cutDAG(text, dPath)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
+	t.Run("cut dag 1", func(t *testing.T) {
+		text := "今天天氣很好"
+		dPath := [][2]int{
+			{0, 2},
+			{2, 3},
+			{3, 4},
+			{4, 5},
+			{5, 6},
+		}
+		want := []string{"今天", "天", "氣", "很", "好"}
+		got := tk.cutDAG(text, dPath)
+		assertDeepEqual(t, want, got)
+	})
 
-	text = "我昨天去上海交通大學與老師討論量子力學"
-	want = []string{"我", "昨天", "去", "上海", "交", "通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
-	dPath = [][2]int{
-		{0, 1},
-		{1, 3},
-		{3, 4},
-		{4, 6},
-		{6, 7},
-		{7, 8},
-		{8, 9},
-		{9, 10},
-		{10, 11},
-		{11, 12},
-		{12, 13},
-		{13, 14},
-		{14, 15},
-		{15, 17},
-		{17, 18},
-		{18, 19},
-	}
-	got = tk.cutDAG(text, dPath)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
+	t.Run("cut dag 2", func(t *testing.T) {
+		text := "我昨天去上海交通大學與老師討論量子力學"
+		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
+		dPath := [][2]int{
+			{0, 1},
+			{1, 3}, // 昨天
+			{3, 4},
+			{4, 6}, // 上海
+			{6, 8}, // 交通
+			{8, 9},
+			{9, 10},
+			{10, 11},
+			{11, 12},
+			{12, 13},
+			{13, 14},
+			{14, 15},
+			{15, 17}, // 量子
+			{17, 18},
+			{18, 19},
+		}
+		got := tk.cutDAG(text, dPath)
+		assertDeepEqual(t, want, got)
+	})
 }
 
 func TestCutHMM(t *testing.T) {
@@ -466,6 +464,13 @@ func TestInitialize(t *testing.T) {
 			i--
 		}
 	})
+}
+
+func assertDeepEqual(t *testing.T, want, got interface{}) {
+	t.Helper()
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
 }
 
 // Load a prefix dictionary created from jieba's dict.txt.

@@ -364,7 +364,8 @@ func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 	textRune := []rune(text)
 	pieces := []string{}
 	for _, dagIndex := range dagPath {
-		pieces = append(pieces, string(textRune[dagIndex[0]:dagIndex[1]]))
+		p := string(textRune[dagIndex[0]:dagIndex[1]])
+		pieces = append(pieces, p)
 	}
 	return pieces
 }
