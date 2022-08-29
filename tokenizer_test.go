@@ -95,9 +95,8 @@ func TestCutHMM(t *testing.T) {
 		vPath := []string{"B", "E", "S", "S"}
 		want := []string{"天氣", "很", "好"}
 		got := tk.cutHMM(text, vPath)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %q, got %q", want, got)
-		}
+		assertDeepEqual(t, want, got)
+
 	})
 
 	t.Run("cut hmm 2", func(t *testing.T) {
@@ -105,9 +104,7 @@ func TestCutHMM(t *testing.T) {
 		vPath := []string{"B", "E", "S", "B", "E", "B", "E"}
 		want := []string{"大學", "與", "老師", "討論"}
 		got := tk.cutHMM(text, vPath)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %q, got %q", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 }
 
@@ -119,18 +116,14 @@ func TestViterbi(t *testing.T) {
 		text := "天氣很好"
 		want := []string{"B", "E", "S", "S"}
 		got := tk.viterbi(text)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 
 	t.Run("viterbi case 2", func(t *testing.T) {
 		text := "大學與老師討論"
 		want := []string{"B", "E", "S", "B", "E", "B", "E"}
 		got := tk.viterbi(text)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 }
 
@@ -143,37 +136,33 @@ func TestStateTransitionRoute(t *testing.T) {
 		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
 	}
 	step := 2
-	// routes for E->B vs S->B.
-	wantFrom := "E"
-	nowState := "B"
-	gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
-	if gotRoute.from != wantFrom {
-		t.Errorf("want %v, got %v", wantFrom, gotRoute)
-	}
+	t.Run("transition E->B vs S->B", func(t *testing.T) {
+		wantFrom := "E"
+		nowState := "B"
+		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
+		assertEqual(t, wantFrom, gotRoute.from)
+	})
 
-	// routes for B->M vs M->M.
-	wantFrom = "B"
-	nowState = "M"
-	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
-	if gotRoute.from != wantFrom {
-		t.Errorf("want %v, got %v", wantFrom, gotRoute)
-	}
+	t.Run("transition B->M vs M->M", func(t *testing.T) {
+		wantFrom := "B"
+		nowState := "M"
+		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
+		assertEqual(t, wantFrom, gotRoute.from)
+	})
 
-	// routes for B->E vs M->E.
-	wantFrom = "M"
-	nowState = "E"
-	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
-	if gotRoute.from != wantFrom {
-		t.Errorf("want %v, got %v", wantFrom, gotRoute)
-	}
+	t.Run("transition B->E vs M->E", func(t *testing.T) {
+		wantFrom := "M"
+		nowState := "E"
+		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
+		assertEqual(t, wantFrom, gotRoute.from)
+	})
 
-	// routes for B->S vs M->S.
-	wantFrom = "S"
-	nowState = "S"
-	gotRoute = tk.stateTransitionRoute(step, nowState, hsProb)
-	if gotRoute.from != wantFrom {
-		t.Errorf("want %v, got %v", wantFrom, gotRoute)
-	}
+	t.Run("transition B->S vs M->S", func(t *testing.T) {
+		wantFrom := "S"
+		nowState := "S"
+		gotRoute := tk.stateTransitionRoute(step, nowState, hsProb)
+		assertEqual(t, wantFrom, gotRoute.from)
+	})
 }
 
 func TestLoadHMM(t *testing.T) {
@@ -217,9 +206,7 @@ func TestFindDAGPath(t *testing.T) {
 			{5, 6}, // text[5:6] = 好
 		}
 		got := tk.findDAGPath(text, dag)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 
 	t.Run("find DAG path: 我昨天去上海交通大學與老師討論量子力學", func(t *testing.T) {
@@ -264,9 +251,7 @@ func TestFindDAGPath(t *testing.T) {
 			{18, 19},
 		}
 		got := tk.findDAGPath(text, dag)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 }
 
@@ -290,9 +275,7 @@ func TestFindBestPath(t *testing.T) {
 		}
 		text := "今天天氣很好"
 		got := tk.findBestPath(text, dagProba)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 
 	t.Run("path2", func(t *testing.T) {
@@ -337,9 +320,7 @@ func TestFindBestPath(t *testing.T) {
 		}
 		text := "我昨天去上海交通大學與老師討論量子力學"
 		got := tk.findBestPath(text, dagProba)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 }
 
@@ -353,9 +334,7 @@ func TestMaxProbaIndex(t *testing.T) {
 	}
 	want := 2
 	got := tk.maxProbaIndex(given)
-	if want != got {
-		t.Errorf("want %v got %v", want, got)
-	}
+	assertEqual(t, want, got)
 }
 
 func TestBuildDAG(t *testing.T) {
@@ -375,9 +354,7 @@ func TestBuildDAG(t *testing.T) {
 			5: {6},    // text[5:6] == 好
 		}
 		got := tk.buildDAG(text1)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 
 	text2 := "我昨天去上海交通大學與老師討論量子力學"
@@ -404,9 +381,7 @@ func TestBuildDAG(t *testing.T) {
 			18: {19},
 		}
 		got := tk.buildDAG(text2)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("want %v, got %v", want, got)
-		}
+		assertDeepEqual(t, want, got)
 	})
 }
 
@@ -443,9 +418,7 @@ func TestBuildPrefixDict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(want, tk.prefixDict) {
-		t.Errorf("want %v, got %v", want, tk.prefixDict)
-	}
+	assertDeepEqual(t, want, tk.prefixDict)
 }
 
 func TestInitialize(t *testing.T) {
@@ -466,13 +439,9 @@ func TestInitialize(t *testing.T) {
 			"天":  0,
 			"天氣": 3,
 		}
-		if !reflect.DeepEqual(want, tk.prefixDict) {
-			t.Errorf("want %v, got %v", want, tk.prefixDict)
-		}
+		assertDeepEqual(t, want, tk.prefixDict)
 		wantSize := 13
-		if wantSize != tk.dictSize {
-			t.Errorf("want %v for dictSize, got %v", wantSize, tk.dictSize)
-		}
+		assertEqual(t, wantSize, tk.dictSize)
 	})
 
 	t.Run("without custom dictionary", func(t *testing.T) {
@@ -500,6 +469,13 @@ func TestInitialize(t *testing.T) {
 func assertDeepEqual(t *testing.T, want, got interface{}) {
 	t.Helper()
 	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
+
+func assertEqual(t *testing.T, want, got interface{}) {
+	t.Helper()
+	if want != got {
 		t.Errorf("want %v, got %v", want, got)
 	}
 }
