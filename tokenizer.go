@@ -222,6 +222,7 @@ func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 	return bestIndex
 }
 
+// Load jieba's trained Hidden Markov model.
 func (tk *Tokenizer) loadHMM() {
 	tk.startP = map[string]float64{
 		"B": -0.26268660809250016,
@@ -264,6 +265,10 @@ type transitionRoute struct {
 	proba float64
 }
 
+// Find the most likely route that connects one state to the next.
+// For example, hidden state B could be preceded by either an E or
+// a S. This function finds the most likely route (E->B vs S->B)
+// along with the route's log probability.
 func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenStates map[int]map[string]float64) transitionRoute {
 	stateChange := map[string][]string{
 		"B": {"E", "S"}, // E->B, S->B
@@ -272,6 +277,7 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 		"S": {"E", "S"},
 	}
 
+	// List all possible routes and their log probabilities.
 	routes := map[string]float64{}
 	for _, prevState := range stateChange[nowState] {
 		prevProb := hiddenStates[step-1][prevState]
@@ -279,6 +285,7 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 		routes[prevState] = routeProb
 	}
 
+	// Pick the route with the highest log probability.
 	bestPrevState := ""
 	bestRouteProba := minFloat
 	for prevState, routeProba := range routes {
@@ -291,8 +298,12 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 	return bestRoute
 }
 
+// Use the Viterbi algorithm to find the hidden states of all
+// characters in `text`, and the path of highest probability.
 func (tk *Tokenizer) viterbi(text string) []string {
 	textRune := []rune(text)
+
+	// Always return "S" for a single-piece input.
 	if len(textRune) == 1 {
 		return []string{"S"}
 	}
@@ -325,6 +336,8 @@ func (tk *Tokenizer) viterbi(text string) []string {
 		i := i_ + 1
 		hiddenStateProba[i] = map[string]float64{}
 		partialPath := map[string][]string{}
+		// Find the most likely route preceding each state,
+		// and the route's log probability.
 		for _, s := range HMMstates {
 			route := tk.stateTransitionRoute(i, s, hiddenStateProba)
 			emitProba, found := tk.emitP[s][string(char)]
@@ -333,6 +346,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 			}
 			stateProba := route.proba + emitProba
 			hiddenStateProba[i][s] = stateProba
+			// Append route to fullPath.
 			partialPath[s] = append(partialPath[s], fullPath[route.from]...)
 			partialPath[s] = append(partialPath[s], s)
 		}
@@ -340,7 +354,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	}
 
 	// Select the path that arrives at either E or S state,
-	// whichever has the highest hidden state.
+	// whichever has the highest hidden state probability.
 	e := hiddenStateProba[len(textRune)-1]["E"]
 	s := hiddenStateProba[len(textRune)-1]["S"]
 	finalState := "E"
@@ -350,6 +364,7 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	return fullPath[finalState]
 }
 
+// Cut `text` according the the path found by the Viterbi algorithm.
 func (tk *Tokenizer) cutHMM(text string, viterbiPath []string) []string {
 	textRune := []rune(text)
 	pieces := []string{}
@@ -364,6 +379,7 @@ func (tk *Tokenizer) cutHMM(text string, viterbiPath []string) []string {
 	return pieces
 }
 
+// Cut `text` using a DAG path built from a prefix dictionary.
 func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 	textRune := []rune(text)
 	pieces := []string{}
@@ -374,6 +390,8 @@ func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 	return pieces
 }
 
+// Cut `text` using a prefix dictionary, and optionally use a
+// Hidden Markov model to identify and segment unknown words.
 func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 	dag := tk.buildDAG(text)
 	dagPath := tk.findDAGPath(text, dag)
@@ -388,9 +406,11 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 	uncutRunes := []rune{}
 	for i, piece := range dagPieces {
 		pieceRune := []rune(piece)
+		// Collect singletons for HMM segmentation
 		if len(pieceRune) == 1 {
 			uncutRunes = append(uncutRunes, pieceRune[0])
-			// At the end of iteration, and have uncut runes.
+			// Run cutHMM at the end of iteration only if there
+			// are uncut runes.
 			if i+1 >= len(dagPieces) && len(uncutRunes) != 0 {
 				v := tk.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
@@ -398,6 +418,7 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 				uncutRunes = []rune{}
 			}
 		} else {
+			// Run cutHMM when a length > 1 rune is encountered.
 			if len(uncutRunes) != 0 {
 				v := tk.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
