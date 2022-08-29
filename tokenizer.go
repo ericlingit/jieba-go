@@ -293,6 +293,10 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 
 func (tk *Tokenizer) viterbi(text string) []string {
 	textRune := []rune(text)
+	if len(textRune) == 1 {
+		return []string{"S"}
+	}
+
 	hiddenStateProba := map[int]map[string]float64{
 		0: {},
 	}
