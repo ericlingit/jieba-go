@@ -12,6 +12,26 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestTextSplitter(t *testing.T) {
+	cases := []struct {
+		text string
+		want []TextBlock
+	}{
+		{"xxx中文xxx", []TextBlock{{"xxx", false}, {"中文", true}, {"xxx", false}}},
+		{"中文xxx", []TextBlock{{"中文", true}, {"xxx", false}}},
+		{"xxx中文", []TextBlock{{"xxx", false}, {"中文", true}}},
+		{"xxx", []TextBlock{{"xxx", false}}},
+		{"中文", []TextBlock{{"中文", true}}},
+		{"english번역『하다』今天天氣很好，ステーション1+1=2我昨天去上海*important*去", []TextBlock{{"english번역『하다』", false}, {"今天天氣很好", true}, {"，ステーション1+1=2", false}, {"我昨天去上海", true}, {"*important*", false}, {"去", true}}},
+	}
+	for _, c := range cases {
+		t.Run(c.text, func(t *testing.T) {
+			got := textSplitter(c.text)
+			assertDeepEqual(t, c.want, got)
+		})
+	}
+}
+
 func TestCut(t *testing.T) {
 	tk := Tokenizer{}
 	tk.dictSize = dictSize

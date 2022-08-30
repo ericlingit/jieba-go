@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -418,7 +419,7 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 				v := tk.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
 				words = append(words, newWords...)
-				uncutRunes = []rune{}
+				uncutRunes = nil
 			}
 		} else {
 			// Run cutHMM when a length > 1 rune is encountered.
@@ -426,11 +427,67 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 				v := tk.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
 				words = append(words, newWords...)
-				uncutRunes = []rune{}
+				uncutRunes = nil
 			}
 			words = append(words, piece)
 		}
 	}
 
 	return words
+}
+
+var hanzi = regexp.MustCompile(`\p{Han}+`)
+
+type TextBlock struct {
+	text  string
+	doCut bool
+}
+
+// Identify which blocks to perform segmentation, and which
+// ones to skip by splitting `text` into a slice of Hanzi
+// and non-Hanzi blocks. Hanzi TextBlocks will have their
+// `doCut` value set to `true`.
+func textSplitter(text string) []TextBlock {
+	zhIndexes := hanzi.FindAllIndex([]byte(text), -1)
+	if len(zhIndexes) == 0 {
+		return []TextBlock{{text, false}}
+	}
+	// FindAllIndex() returns a slice of index slices.
+	// Example:
+	//     [][]int{
+	//         {4, 6},
+	//         {8, 10},
+	//     }
+	// Each slice of indexes marks the start (inclusive),
+	// and the end (exclusive) of matched Hanzi *bytes*.
+	//
+	// The for-loop below finds all the non-Hanzi indexes.
+	// For example, if `text` has a length of 15 bytes, then
+	// we'll use the following indexes to split `text`:
+	//     [][]int{
+	//         {0, 4},
+	//         {4, 6}, (hanzi index bounds)
+	//         {6, 8},
+	//         {8, 10}, (hanzi index bounds)
+	//         {10, 15},
+	//     }
+
+	blocks := []TextBlock{}
+	// Check left side of each zhIndex[0].
+	for i, bound := range zhIndexes {
+		if i == 0 && bound[0] != 0 {
+			blocks = append(blocks, TextBlock{text[0:bound[0]], false})
+		}
+		if i != 0 && bound[0] != zhIndexes[i-1][1] {
+			blocks = append(blocks, TextBlock{text[zhIndexes[i-1][1]:bound[0]], false})
+		}
+		blocks = append(blocks, TextBlock{text[bound[0]:bound[1]], true})
+		// Check right side of last zhIndex.
+		if i == len(zhIndexes)-1 {
+			if bound[1] < len(text) {
+				blocks = append(blocks, TextBlock{text[bound[1]:], false})
+			}
+		}
+	}
+	return blocks
 }
