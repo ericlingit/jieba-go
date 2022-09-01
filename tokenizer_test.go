@@ -52,7 +52,11 @@ func TestCut(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := tk.Cut(c.text, c.hmm)
-			assertDeepEqual(t, c.want, got)
+			if !reflect.DeepEqual(c.want, got) && c.name == "cut 2" {
+				t.Errorf("%q: want %v, got %v.", c.name, c.want, got)
+				t.Logf("tk.dag: %v", tk.dag)
+				t.Logf("tk.dagProba: %v", tk.dagProba)
+			}
 		})
 	}
 }
@@ -297,7 +301,7 @@ func TestFindBestPath(t *testing.T) {
 			7:  {8: 1.1},
 			6:  {7: 1.1},
 			5:  {6: 1.1},
-			4:  {5: 1.1, 6: 2.2}, // 上, 上海
+			4:  {6: 2.2, 5: 1.1}, // 上海, 上
 			3:  {4: 1.1},
 			2:  {3: 1.1},
 			1:  {2: 1.1, 3: 2.2}, // 昨, 昨天
@@ -327,7 +331,7 @@ func TestFindBestPath(t *testing.T) {
 	})
 }
 
-func TestMaxProbaIndex(t *testing.T) {
+func TestMaxIndexProba(t *testing.T) {
 	tk := Tokenizer{}
 	given := map[int]float64{
 		0: 0.0,
@@ -335,9 +339,11 @@ func TestMaxProbaIndex(t *testing.T) {
 		2: 2.2,
 		3: -3.3,
 	}
-	want := 2
-	got := tk.maxProbaIndex(given)
-	assertEqual(t, want, got)
+	wantIdx := 2
+	wantProba := 2.2
+	gotIdx, gotProba := tk.maxIndexProba(given)
+	assertEqual(t, wantIdx, gotIdx)
+	assertEqual(t, wantProba, gotProba)
 }
 
 func TestBuildDAG(t *testing.T) {

@@ -23,6 +23,9 @@ type Tokenizer struct {
 	startP     map[string]float64
 	transP     map[string]map[string]float64
 	emitP      map[string]map[string]float64
+	// Values below are for debugging.
+	dag      map[int][]int
+	dagProba map[int]map[int]float64
 }
 
 // Initialize the Tokenizer. If CustomDict is specified, a prefix
@@ -158,6 +161,7 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 			dag[p[0]] = append(val, p[1])
 		}
 	}
+	tk.dag = dag
 	return dag
 }
 
@@ -171,6 +175,7 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 	// Iterate through `textRunes` in reverse.
 	textRunes := []rune(text)
 	for i := len(textRunes) - 1; i >= 0; i-- {
+		// fmt.Printf("%q\n", string(textRunes[i]))
 		dagProba[i] = map[int]float64{}
 		for _, j := range dag[i] {
 			// Calculate current piece's probability.
@@ -187,13 +192,28 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			if val, found := dagProba[j]; found {
 				nextPiece = val
 			}
-			for _, nextPieceFreq := range nextPiece {
-				pieceProba := pieceFreq + nextPieceFreq
-				dagProba[i][j] = pieceProba
-			}
+			// There could be more than 1 nextPiece, use the one
+			// with the highest log frequency.
+			_, nextPieceBestFreq := tk.maxIndexProba(nextPiece)
+			pieceProba := pieceFreq + nextPieceBestFreq
+			dagProba[i][j] = pieceProba
+			// fmt.Printf(
+			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sFreq dagProba[%d][%d])\n",
+			// 	string(textRunes[i:j]),
+			// 	i,
+			// 	j,
+			// 	pieceProba,
+			// 	pieceFreq,
+			// 	string(textRunes[i:j]),
+			// 	nextPieceBestFreq,
+			// 	string(textRunes[j:x]),
+			// 	j,
+			// 	x,
+			// )
 			// fmt.Println(i, j)
 		}
 	}
+	tk.dagProba = dagProba
 	// Keep paths with the highest log probability.
 	return tk.findBestPath(text, dagProba)
 }
@@ -205,16 +225,15 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64)
 
 	bestPath := [][2]int{}
 	for i := 0; i < len(textRunes); {
-		j := tk.maxProbaIndex(dagProba[i])
+		j, _ := tk.maxIndexProba(dagProba[i])
 		bestPath = append(bestPath, [2]int{i, j})
 		i = j
 	}
 	return bestPath
 }
 
-// Return the map key whose value has the highest float.
-// This is a helper method for findBestPath().
-func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
+// Return the map key whose float value is the highest.
+func (tk *Tokenizer) maxIndexProba(probaIndex map[int]float64) (int, float64) {
 	bestIndex := -1
 	bestProba := minFloat
 	for i, proba := range probaIndex {
@@ -223,7 +242,7 @@ func (tk *Tokenizer) maxProbaIndex(probaIndex map[int]float64) int {
 			bestIndex = i
 		}
 	}
-	return bestIndex
+	return bestIndex, bestProba
 }
 
 // Load jieba's trained Hidden Markov model.
