@@ -193,9 +193,9 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 				nextPiece = val
 			}
 			// There could be more than 1 nextPiece, use the one
-			// with the highest log frequency.
-			_, nextPieceBestFreq := tk.maxIndexProba(nextPiece)
-			pieceProba := pieceFreq + nextPieceBestFreq
+			// with the highest log probability.
+			_, nextPieceBestProba := tk.maxIndexProba(nextPiece)
+			pieceProba := pieceFreq + nextPieceBestProba
 			dagProba[i][j] = pieceProba
 			// fmt.Printf(
 			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sFreq dagProba[%d][%d])\n",
