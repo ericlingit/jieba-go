@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const minFloat float64 = -3.14e100
@@ -35,7 +36,7 @@ func (tk *Tokenizer) initialize() {
 	// Build a prefix dictionary from user-proviced dictionary
 	// file.
 	if len(tk.CustomDict) != 0 {
-		// Open & parse text file lines.
+		// Open & collect dictionary file lines.
 		reader, err := os.Open(tk.CustomDict)
 		if err != nil {
 			log.Fatalf("failed to read custom dictionary file: %v", err)
@@ -48,7 +49,7 @@ func (tk *Tokenizer) initialize() {
 		}
 		reader.Close()
 
-		// Build prefix dictionary
+		// Build a prefix dictionary from lines collected during the above step.
 		pdErr := tk.buildPrefixDictionary(lines)
 		if pdErr != nil {
 			log.Fatalf("failed to build prefix dictionary: %v", pdErr)
@@ -71,6 +72,95 @@ func (tk *Tokenizer) initialize() {
 	}
 	tk.prefixDict = pfDict
 	tk.initOk = true
+}
+
+type Line struct {
+	text  string
+	count int
+	err   error
+}
+
+func splitLine(rawLine string) Line {
+	parts := strings.SplitN(rawLine, " ", 3)
+	word := parts[0]
+	count, err := strconv.Atoi(parts[1])
+	return Line{word, count, err}
+}
+
+func produceLines(dictionaryLines []string) chan Line {
+	c := make(chan Line)
+	wg := sync.WaitGroup{}
+	for _, dLine := range dictionaryLines {
+		wg.Add(1)
+		go func(l string) {
+			defer wg.Done()
+			c <- splitLine(l)
+		}(dLine)
+	}
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	return c
+}
+
+func consumeLines(lineIn chan Line, prefixDict map[string]int, dictLock *sync.Mutex, countCh chan int) chan struct{} {
+	wg := sync.WaitGroup{}
+	wg2 := sync.WaitGroup{}
+	for _line := range lineIn {
+		// Receive a Line from c channel, update prefixDict and
+		wg.Add(1)
+		go func(line Line) {
+			// Update prefixDict.
+			defer wg.Done()
+			defer dictLock.Unlock()
+			dictLock.Lock()
+			piece := ""
+			for _, char := range line.text {
+				piece += string(char)
+				_, found := prefixDict[piece]
+				if !found {
+					prefixDict[piece] = 0
+				}
+			}
+			prefixDict[line.text] = line.count
+		}(_line)
+
+		// Update total (send count).
+		wg2.Add(1)
+		go func(l Line) {
+			defer wg2.Done()
+			if l.count <= 0 {
+				return
+			}
+			countCh <- l.count
+		}(_line)
+	}
+
+	go func() {
+		wg2.Wait()
+		close(countCh)
+	}()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	return done
+}
+
+func (tk *Tokenizer) buildPrefixDictionaryParallel(dictionaryLines []string) {
+	lock := sync.Mutex{}
+	countCh := make(chan int)
+	// tk.prefixDict = map[string]int{}
+	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
+
+	lineCh := produceLines(dictionaryLines)
+	done := consumeLines(lineCh, tk.prefixDict, &lock, countCh)
+	for c := range countCh {
+		tk.dictSize += c
+	}
+	<-done
 }
 
 /*Build a prefix dictionary from `dictionaryLines`.
@@ -102,7 +192,7 @@ For example:
 }
 */
 func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
-	prefixDict := map[string]int{}
+	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
 	total := 0
 	for _, line := range dictionaryLines {
 		parts := strings.SplitN(line, " ", 3)
@@ -116,14 +206,13 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 		piece := ""
 		for _, char := range word {
 			piece += string(char)
-			_, found := prefixDict[piece]
+			_, found := tk.prefixDict[piece]
 			if !found {
-				prefixDict[piece] = 0
+				tk.prefixDict[piece] = 0
 			}
 		}
-		prefixDict[word] = count
+		tk.prefixDict[word] = count
 	}
-	tk.prefixDict = prefixDict
 	tk.dictSize = total
 	return nil
 }
@@ -198,14 +287,14 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			pieceProba := pieceFreq + nextPieceBestProba
 			dagProba[i][j] = pieceProba
 			// fmt.Printf(
-			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sFreq dagProba[%d][%d])\n",
+			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sProba dagProba[%d][%d])\n",
 			// 	string(textRunes[i:j]),
 			// 	i,
 			// 	j,
 			// 	pieceProba,
 			// 	pieceFreq,
 			// 	string(textRunes[i:j]),
-			// 	nextPieceBestFreq,
+			// 	nextPieceBestProba,
 			// 	string(textRunes[j:x]),
 			// 	j,
 			// 	x,

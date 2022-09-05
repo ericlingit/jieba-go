@@ -1,6 +1,7 @@
 package tokenizer
 
 import (
+	"bufio"
 	"encoding/gob"
 	"fmt"
 	"os"
@@ -428,6 +429,89 @@ func TestBuildPrefixDict(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertDeepEqual(t, want, tk.prefixDict)
+}
+
+func TestBuildPrefixDictInParallel(t *testing.T) {
+	tk := Tokenizer{}
+	input := []string{
+		"AT&T 3 nz",
+		"B超 3 n",
+		"c# 3 nz",
+		"C# 3",
+		"江南style 3 n",
+		"江南 4986 ns",
+	}
+	want := map[string]int{
+		"A":       0,
+		"AT":      0,
+		"AT&":     0,
+		"AT&T":    3,
+		"B":       0,
+		"B超":      3,
+		"c":       0,
+		"c#":      3,
+		"C#":      3,
+		"C":       0,
+		"江":       0,
+		"江南":      4986,
+		"江南s":     0,
+		"江南st":    0,
+		"江南sty":   0,
+		"江南styl":  0,
+		"江南style": 3,
+	}
+	tk.buildPrefixDictionaryParallel(input)
+	assertDeepEqual(t, want, tk.prefixDict)
+}
+
+// Before optimization: 232,176,534 ns/op
+func BenchmarkBuildPrefDictSequentially(b *testing.B) {
+	tk := Tokenizer{}
+	tk.CustomDict = "dict.txt"
+
+	// Open & collect dictionary file lines.
+	reader, err := os.Open(tk.CustomDict)
+	if err != nil {
+		b.Fatalf("failed to read custom dictionary file: %v", err)
+	}
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanLines)
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	reader.Close()
+
+	// Run benchmark.
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.buildPrefixDictionary(lines)
+	}
+}
+
+// After optimization: 1,231,222,428 ns/op
+func BenchmarkBuildPrefDictConcurrently(b *testing.B) {
+	tk := Tokenizer{}
+	tk.CustomDict = "dict.txt"
+
+	// Open & collect dictionary file lines.
+	reader, err := os.Open(tk.CustomDict)
+	if err != nil {
+		b.Fatalf("failed to read custom dictionary file: %v", err)
+	}
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanLines)
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	reader.Close()
+
+	// Run benchmark.
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.buildPrefixDictionaryParallel(lines)
+	}
 }
 
 func TestInitialize(t *testing.T) {
