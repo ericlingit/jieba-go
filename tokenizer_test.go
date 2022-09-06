@@ -431,23 +431,23 @@ func TestBuildPrefixDict(t *testing.T) {
 	assertDeepEqual(t, want, tk.prefixDict)
 }
 
+func TestBuildPrefixDictFromScratch(t *testing.T) {
+	tk := Tokenizer{}
+	tk.CustomDict = "dict.txt"
+	lines := loadDictionaryFile(tk.CustomDict)
+
+	tk.buildPrefixDictionary(lines)
+
+	// Compare ALL items in `prefixDictionary` to
+	// `tk.prefixDict`.
+	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
+}
+
 // 173,233,534 ns/op
 func BenchmarkBuildPrefDict(b *testing.B) {
 	tk := Tokenizer{}
 	tk.CustomDict = "dict.txt"
-
-	// Open & collect dictionary file lines.
-	reader, err := os.Open(tk.CustomDict)
-	if err != nil {
-		b.Fatalf("failed to read custom dictionary file: %v", err)
-	}
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanLines)
-	lines := []string{}
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	reader.Close()
+	lines := loadDictionaryFile(tk.CustomDict)
 
 	// Run benchmark.
 	b.ResetTimer()
@@ -515,6 +515,18 @@ func assertEqual(t *testing.T, want, got interface{}) {
 	}
 }
 
+// Use a for-loop to perform reflect.DeepEqual. This is
+// much faster than calling DeepEqual.
+func assertDeepEqualLoop(t *testing.T, want, got map[string]int) {
+	t.Helper()
+
+	for k, v := range want {
+		if v != got[k] {
+			t.Errorf("%q want %v, got %v", k, v, got[k])
+		}
+	}
+}
+
 // Load a prefix dictionary created from jieba's dict.txt.
 func loadPrefixDictionaryFromGob() map[string]int {
 	// Read gob file.
@@ -530,6 +542,21 @@ func loadPrefixDictionaryFromGob() map[string]int {
 	}
 
 	return pfDict
+}
+
+func loadDictionaryFile(f string) []string {
+	reader, err := os.Open(f)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
+	}
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanLines)
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	reader.Close()
+	return lines
 }
 
 // func savePrefixDictionaryToGob() {
