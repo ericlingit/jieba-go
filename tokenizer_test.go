@@ -49,14 +49,19 @@ func TestCut(t *testing.T) {
 		{"cut 1 hmm", "今天天氣很好", []string{"今天", "天氣", "很", "好"}, true},
 		{"cut 2", "我昨天去上海交通大學與老師討論量子力學", []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}, false},
 		{"cut 2 hmm", "我昨天去上海交通大學與老師討論量子力學", []string{"我", "昨天", "去", "上海", "交通", "大學", "與", "老師", "討論", "量子", "力學"}, true},
+		{"cut 3 hmm", "english번역『하다』今天天氣很好，ステーションabc1231+1=2我昨天去上海*important*去", []string{"english", "번", "역", "『", "하", "다", "』", "今天", "天氣", "很", "好", "，", "ス", "テ", "ー", "シ", "ョ", "ン", "abc1231", "+", "1", "=", "2", "我", "昨天", "去", "上海", "*", "important", "*", "去"}, true},
+		{"cut 4", "some english words", []string{"some", "english", "words"}, false},
+		{"cut 5", "abc123", []string{"abc123"}, false},
+		{"cut 6", "a1+1=2", []string{"a1", "+", "1", "=", "2"}, false},
+		{"cut 7", "aaa\nbbb", []string{"aaa", "bbb"}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := tk.Cut(c.text, c.hmm)
-			if !reflect.DeepEqual(c.want, got) && c.name == "cut 2" {
-				t.Errorf("%q: want %v, got %v.", c.name, c.want, got)
+			if !reflect.DeepEqual(c.want, got) {
 				t.Logf("tk.dag: %v", tk.dag)
 				t.Logf("tk.dagProba: %v", tk.dagProba)
+				t.Fatalf("%q wants %v, got %v", c.name, c.want, got)
 			}
 		})
 	}

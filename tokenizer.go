@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const minFloat float64 = -3.14e100
@@ -412,9 +413,9 @@ func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 	return pieces
 }
 
-// Cut `text` using a prefix dictionary, and optionally use a
+// cutText `text` using a prefix dictionary, and optionally use a
 // Hidden Markov model to identify and segment unknown words.
-func (tk *Tokenizer) Cut(text string, hmm bool) []string {
+func (tk *Tokenizer) cutText(text string, hmm bool) []string {
 	dag := tk.buildDAG(text)
 	dagPath := tk.findDAGPath(text, dag)
 	dagPieces := tk.cutDAG(text, dagPath)
@@ -454,17 +455,74 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 	return words
 }
 
+func (tk *Tokenizer) Cut(text string, hmm bool) []string {
+	blocks := textSplitter(text)
+
+	result := []string{}
+	for _, block := range blocks {
+		if block.isZh {
+			result = append(result, tk.cutText(block.text, hmm)...)
+		} else {
+			result = append(result, processNonZh(block.text)...)
+		}
+	}
+	return result
+}
+
+var alnum = regexp.MustCompile(`([a-zA-Z0-9]+)`)
+
+func processNonZh(text string) []string {
+	alnumIdx := alnum.FindAllIndex([]byte(text), -1)
+	if len(alnumIdx) == 0 {
+		return []string{""}
+	}
+
+	blocks := []string{}
+	// Check left side of each zhIndex[0].
+	for i, bound := range alnumIdx {
+		if i == 0 && bound[0] != 0 {
+			for _, r := range text[:bound[0]] {
+				if unicode.IsSpace(r) {
+					continue
+				}
+				blocks = append(blocks, string(r))
+			}
+		}
+		if i != 0 && bound[0] != alnumIdx[i-1][1] {
+			for _, r := range text[alnumIdx[i-1][1]:bound[0]] {
+				if unicode.IsSpace(r) {
+					continue
+				}
+				blocks = append(blocks, string(r))
+			}
+		}
+		blocks = append(blocks, text[bound[0]:bound[1]])
+		// Check right side of last zhIndex.
+		if i == len(alnumIdx)-1 {
+			if bound[1] < len(text) {
+				for _, r := range text[bound[1]:] {
+					if unicode.IsSpace(r) {
+						continue
+					}
+					blocks = append(blocks, string(r))
+				}
+			}
+		}
+	}
+	return blocks
+}
+
 var hanzi = regexp.MustCompile(`\p{Han}+`)
 
 type TextBlock struct {
-	text  string
-	doCut bool
+	text string
+	isZh bool
 }
 
 // Identify which blocks to perform segmentation, and which
 // ones to skip by splitting `text` into a slice of Hanzi
 // and non-Hanzi blocks. Hanzi TextBlocks will have their
-// `doCut` value set to `true`.
+// `isZh` value set to `true`.
 func textSplitter(text string) []TextBlock {
 	zhIndexes := hanzi.FindAllIndex([]byte(text), -1)
 	if len(zhIndexes) == 0 {
