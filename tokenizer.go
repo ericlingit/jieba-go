@@ -87,6 +87,66 @@ func splitLine(rawLine string) Line {
 	return Line{word, count, err}
 }
 
+func lineDigester(done chan struct{}, rawLineCh chan string, resultCh chan Line) {
+	for rawLine := range rawLineCh {
+		select {
+		case <-done:
+			return
+		case resultCh <- splitLine(rawLine):
+		}
+	}
+}
+
+func (tk *Tokenizer) splitLineParallel(dictionaryLines []string) error {
+	rawLineCh := make(chan string, len(dictionaryLines))
+	for _, rawLine := range dictionaryLines {
+		rawLineCh <- rawLine
+	}
+	close(rawLineCh)
+
+	lineResultCh := make(chan Line, len(dictionaryLines))
+	done := make(chan struct{})
+	defer close(done)
+	workerWg := sync.WaitGroup{}
+	numWorkers := 6
+	workerWg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			lineDigester(done, rawLineCh, lineResultCh)
+			workerWg.Done()
+		}()
+	}
+	go func() {
+		workerWg.Wait()
+		close(lineResultCh)
+	}()
+
+	// Consume results.
+	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
+	total := 0
+	for _, line := range dictionaryLines {
+		parts := strings.SplitN(line, " ", 3)
+		word := parts[0]
+		count, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return err
+		}
+		total += count
+
+		piece := ""
+		for _, char := range word {
+			piece += string(char)
+			_, found := tk.prefixDict[piece]
+			if !found {
+				tk.prefixDict[piece] = 0
+			}
+		}
+		tk.prefixDict[word] = count
+	}
+	tk.dictSize = total
+	return nil
+}
+
 func produceLines(dictionaryLines []string) chan Line {
 	c := make(chan Line)
 	wg := sync.WaitGroup{}
@@ -130,9 +190,6 @@ func consumeLines(lineIn chan Line, prefixDict map[string]int, dictLock *sync.Mu
 		wg2.Add(1)
 		go func(l Line) {
 			defer wg2.Done()
-			if l.count <= 0 {
-				return
-			}
 			countCh <- l.count
 		}(_line)
 	}
@@ -147,6 +204,70 @@ func consumeLines(lineIn chan Line, prefixDict map[string]int, dictLock *sync.Mu
 		close(done)
 	}()
 	return done
+}
+
+func produceLines2(dictionaryLines []string) chan Line {
+	c := make(chan Line)
+	wg := sync.WaitGroup{}
+	wg.Add(len(dictionaryLines))
+	go func() {
+		for _, dLine := range dictionaryLines {
+			c <- splitLine(dLine)
+			wg.Done()
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(c)
+	}()
+	return c
+}
+
+func lineWorker(done chan struct{}, lineIn chan Line, prefixDict map[string]int, dictLock *sync.Mutex, countCh chan int) {
+	for line := range lineIn {
+		select {
+		case <-done:
+			return
+		case countCh <- line.count:
+			piece := ""
+			dictLock.Lock()
+			for _, char := range line.text {
+				piece += string(char)
+				_, found := prefixDict[piece]
+				if !found {
+					prefixDict[piece] = 0
+				}
+			}
+			prefixDict[line.text] = line.count
+			dictLock.Unlock()
+		}
+	}
+}
+
+func (tk *Tokenizer) buildPrefixDictionaryParallel2(dictionaryLines []string) {
+	lock := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	defer close(done)
+	countCh := make(chan int)
+	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
+
+	lineCh := produceLines2(dictionaryLines)
+	numWorkers := 6
+	wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			lineWorker(done, lineCh, tk.prefixDict, &lock, countCh)
+			wg.Done()
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(countCh)
+	}()
+	for c := range countCh {
+		tk.dictSize += c
+	}
 }
 
 func (tk *Tokenizer) buildPrefixDictionaryParallel(dictionaryLines []string) {
