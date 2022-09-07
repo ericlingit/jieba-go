@@ -13,6 +13,24 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestProcessNonZh(t *testing.T) {
+	cases := []struct {
+		text string
+		want []string
+	}{
+		{"some english words", []string{"some", "english", "words"}},
+		{"abc123", []string{"abc123"}},
+		{"a1+1=2", []string{"a1", "+", "1", "=", "2"}},
+		{"aaa\nbbb", []string{"aaa", "bbb"}},
+	}
+	for _, c := range cases {
+		got := processNonZh(c.text)
+		if !reflect.DeepEqual(c.want, got) {
+			t.Errorf("case %q: want %v, got %v", c.text, c.want, got)
+		}
+	}
+}
+
 func TestTextSplitter(t *testing.T) {
 	cases := []struct {
 		text string
@@ -27,7 +45,8 @@ func TestTextSplitter(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
-			got := textSplitter(c.text)
+			zhIndexes := hanzi.FindAllIndex([]byte(c.text), -1)
+			got := textSplitter(c.text, zhIndexes)
 			assertDeepEqual(t, c.want, got)
 		})
 	}
@@ -593,5 +612,25 @@ func loadDictionaryFile(f string) []string {
 // 	encoder := gob.NewEncoder(gobFile)
 // 	if err := encoder.Encode(pfDict); err != nil {
 // 		panic(fmt.Sprintf("failed to encode pfDict: %v", err))
+// 	}
+// }
+
+// func TestAAA(t *testing.T) {
+// 	cases := []struct {
+// 		indexes [][]int
+// 		length  int
+// 		want    [][]int
+// 	}{
+// 		{[][]int{{0, 6}, {8, 10}}, 15, [][]int{{0, 6}, {6, 8}, {8, 10}, {10, 15}}},
+// 		{[][]int{{4, 6}, {8, 10}}, 15, [][]int{{0, 4}, {4, 6}, {6, 8}, {8, 10}, {10, 15}}},
+// 		{[][]int{{4, 6}, {8, 15}}, 15, [][]int{{0, 4}, {4, 6}, {6, 8}, {8, 15}}},
+// 		{[][]int{{4, 8}}, 15, [][]int{{0, 4}, {4, 8}, {8, 15}}},
+// 		{[][]int{{0, 15}}, 15, [][]int{{0, 15}}},
+// 	}
+// 	for _, c := range cases {
+// 		got := fillIndexGaps(c.indexes, c.length)
+// 		if !reflect.DeepEqual(c.want, got) {
+// 			t.Errorf("want %v, got %v", c.want, got)
+// 		}
 // 	}
 // }

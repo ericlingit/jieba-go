@@ -456,11 +456,12 @@ func (tk *Tokenizer) cutText(text string, hmm bool) []string {
 }
 
 func (tk *Tokenizer) Cut(text string, hmm bool) []string {
-	blocks := textSplitter(text)
+	zhIndexes := hanzi.FindAllIndex([]byte(text), -1)
+	blocks := textSplitter(text, zhIndexes)
 
 	result := []string{}
 	for _, block := range blocks {
-		if block.isZh {
+		if block.doProcess {
 			result = append(result, tk.cutText(block.text, hmm)...)
 		} else {
 			result = append(result, processNonZh(block.text)...)
@@ -469,68 +470,22 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 	return result
 }
 
-var alnum = regexp.MustCompile(`([a-zA-Z0-9]+)`)
-
-func processNonZh(text string) []string {
-	alnumIdx := alnum.FindAllIndex([]byte(text), -1)
-	if len(alnumIdx) == 0 {
-		return []string{""}
-	}
-
-	blocks := []string{}
-	// Check left side of each zhIndex[0].
-	for i, bound := range alnumIdx {
-		if i == 0 && bound[0] != 0 {
-			for _, r := range text[:bound[0]] {
-				if unicode.IsSpace(r) {
-					continue
-				}
-				blocks = append(blocks, string(r))
-			}
-		}
-		if i != 0 && bound[0] != alnumIdx[i-1][1] {
-			for _, r := range text[alnumIdx[i-1][1]:bound[0]] {
-				if unicode.IsSpace(r) {
-					continue
-				}
-				blocks = append(blocks, string(r))
-			}
-		}
-		blocks = append(blocks, text[bound[0]:bound[1]])
-		// Check right side of last zhIndex.
-		if i == len(alnumIdx)-1 {
-			if bound[1] < len(text) {
-				for _, r := range text[bound[1]:] {
-					if unicode.IsSpace(r) {
-						continue
-					}
-					blocks = append(blocks, string(r))
-				}
-			}
-		}
-	}
-	return blocks
-}
-
 var hanzi = regexp.MustCompile(`\p{Han}+`)
 
 type TextBlock struct {
-	text string
-	isZh bool
+	text      string
+	doProcess bool
 }
 
-// Identify which blocks to perform segmentation, and which
-// ones to skip by splitting `text` into a slice of Hanzi
-// and non-Hanzi blocks. Hanzi TextBlocks will have their
-// `isZh` value set to `true`.
-func textSplitter(text string) []TextBlock {
-	zhIndexes := hanzi.FindAllIndex([]byte(text), -1)
-	if len(zhIndexes) == 0 {
+// Identify the text index ranges to process.
+func textSplitter(text string, markedIndexes [][]int) []TextBlock {
+	if len(markedIndexes) == 0 {
 		return []TextBlock{{text, false}}
 	}
 
 	// Find all in-between indexes.
-	// For example, if text length is 15, and zhIndexes is as follows:
+	// For example, if text length is 15, and markedIndexes is as
+	// follows:
 	//     [][]int{
 	//         {4, 6},
 	//         {8, 10},
@@ -539,30 +494,57 @@ func textSplitter(text string) []TextBlock {
 	// then we expect this result:
 	//     [][]int{
 	//         {0, 4},
-	//         {4, 6}, // Mark as Hanzi index pairs
+	//         {4, 6}, // Marked index pairs (doProcess=true)
 	//         {6, 8},
-	//         {8, 10}, // Mark as Hanzi index pairs
+	//         {8, 10}, // Marked index pairs (doProcess=true)
 	//         {10, 15},
 	//     }
 	blocks := []TextBlock{}
 	prevTail := 0
-	for i, pair := range zhIndexes {
+	for i, pair := range markedIndexes {
 		// Pair has left-side gap.
 		if pair[0] != prevTail {
 			// Fill in the gap.
 			filler := text[prevTail:pair[0]]
 			blocks = append(blocks, TextBlock{filler, false})
 		}
-		zhText := text[pair[0]:pair[1]]
-		blocks = append(blocks, TextBlock{zhText, true})
+		markedText := text[pair[0]:pair[1]]
+		blocks = append(blocks, TextBlock{markedText, true})
 		prevTail = pair[1]
 
 		// Last pair with a right-side gap.
-		if i == len(zhIndexes)-1 && pair[1] != len(text) {
+		if i == len(markedIndexes)-1 && pair[1] != len(text) {
 			// Fill in the gap.
 			filler := text[pair[1]:]
 			blocks = append(blocks, TextBlock{filler, false})
 		}
 	}
 	return blocks
+}
+
+var alnum = regexp.MustCompile(`([a-zA-Z0-9]+)`)
+
+// Perform simple segmentation for space delimited alphanumeric
+// words. All other characters are broken into individual runes.
+func processNonZh(text string) []string {
+	alnumIdx := alnum.FindAllIndex([]byte(text), -1)
+	if len(alnumIdx) == 0 {
+		return []string{""}
+	}
+
+	textPieces := []string{}
+	blocks := textSplitter(text, alnumIdx)
+	for _, b := range blocks {
+		if b.doProcess {
+			textPieces = append(textPieces, b.text)
+		} else {
+			for _, r := range b.text {
+				if unicode.IsSpace(r) {
+					continue
+				}
+				textPieces = append(textPieces, string(r))
+			}
+		}
+	}
+	return textPieces
 }
