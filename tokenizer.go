@@ -528,41 +528,40 @@ func textSplitter(text string) []TextBlock {
 	if len(zhIndexes) == 0 {
 		return []TextBlock{{text, false}}
 	}
-	// FindAllIndex() returns a slice of index slices.
-	// Example:
+
+	// Find all in-between indexes.
+	// For example, if text length is 15, and zhIndexes is as follows:
 	//     [][]int{
 	//         {4, 6},
 	//         {8, 10},
 	//     }
-	// Each slice of indexes marks the start (inclusive),
-	// and the end (exclusive) of matched Hanzi *bytes*.
 	//
-	// The for-loop below finds all the non-Hanzi indexes.
-	// For example, if `text` has a length of 15 bytes, then
-	// we'll use the following indexes to split `text`:
+	// then we expect this result:
 	//     [][]int{
 	//         {0, 4},
-	//         {4, 6}, (hanzi index bounds)
+	//         {4, 6}, // Mark as Hanzi index pairs
 	//         {6, 8},
-	//         {8, 10}, (hanzi index bounds)
+	//         {8, 10}, // Mark as Hanzi index pairs
 	//         {10, 15},
 	//     }
-
 	blocks := []TextBlock{}
-	// Check left side of each zhIndex[0].
-	for i, bound := range zhIndexes {
-		if i == 0 && bound[0] != 0 {
-			blocks = append(blocks, TextBlock{text[0:bound[0]], false})
+	prevTail := 0
+	for i, pair := range zhIndexes {
+		// Pair has left-side gap.
+		if pair[0] != prevTail {
+			// Fill in the gap.
+			filler := text[prevTail:pair[0]]
+			blocks = append(blocks, TextBlock{filler, false})
 		}
-		if i != 0 && bound[0] != zhIndexes[i-1][1] {
-			blocks = append(blocks, TextBlock{text[zhIndexes[i-1][1]:bound[0]], false})
-		}
-		blocks = append(blocks, TextBlock{text[bound[0]:bound[1]], true})
-		// Check right side of last zhIndex.
-		if i == len(zhIndexes)-1 {
-			if bound[1] < len(text) {
-				blocks = append(blocks, TextBlock{text[bound[1]:], false})
-			}
+		zhText := text[pair[0]:pair[1]]
+		blocks = append(blocks, TextBlock{zhText, true})
+		prevTail = pair[1]
+
+		// Last pair with a right-side gap.
+		if i == len(zhIndexes)-1 && pair[1] != len(text) {
+			// Fill in the gap.
+			filler := text[pair[1]:]
+			blocks = append(blocks, TextBlock{filler, false})
 		}
 	}
 	return blocks
