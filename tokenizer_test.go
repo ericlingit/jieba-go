@@ -596,6 +596,40 @@ func BenchmarkBuildDag(b *testing.B) {
 	}
 }
 
+// 9,968 ns/op
+func BenchmarkFindDAGPath(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+	dag := map[int][]int{
+		0:  {1},
+		1:  {2, 3}, // 昨 昨天
+		2:  {3},
+		3:  {4},
+		4:  {5, 6}, // 上 上海
+		5:  {6},
+		6:  {7},
+		7:  {8},
+		8:  {9},
+		9:  {10},
+		10: {11},
+		11: {12},
+		12: {13},
+		13: {14},
+		14: {15},
+		15: {16, 17}, // 量 量子
+		16: {17, 18}, // 子 子力
+		17: {18},
+		18: {19},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.findDAGPath("我昨天去上海交通大學與老師討論量子力學", dag)
+	}
+}
+
 /*
 go test -bench=. -benchmem
 goos: linux
@@ -604,6 +638,7 @@ pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
 BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
 BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
+BenchmarkFindDAGPath-6            110143              9968 ns/op            6214 B/op         87 allocs/op
 */
 
 // func savePrefixDictionaryToGob() {
