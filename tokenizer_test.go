@@ -467,7 +467,7 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
 }
 
-// 173,233,534 ns/op
+// 140,353,760 ns/op
 func BenchmarkBuildPrefDict(b *testing.B) {
 	tk := Tokenizer{}
 	tk.CustomDict = "dict.txt"

@@ -114,8 +114,9 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 		}
 		total += count
 
+		wordR := []rune(word)
 		piece := ""
-		for _, char := range word {
+		for _, char := range wordR[:len(wordR)-1] {
 			piece += string(char)
 			_, found := tk.prefixDict[piece]
 			if !found {
