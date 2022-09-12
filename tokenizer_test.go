@@ -583,7 +583,7 @@ func BenchmarkBuildPrefDict(b *testing.B) {
 	}
 }
 
-// 4,934 ns/op
+// 4,4289 ns/op
 func BenchmarkBuildDag(b *testing.B) {
 	tk := Tokenizer{}
 	tk.initOk = true
@@ -603,7 +603,7 @@ goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
 BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
-BenchmarkBuildDag-6               237704              4934 ns/op            3413 B/op         34 allocs/op
+BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
 */
 
 // func savePrefixDictionaryToGob() {

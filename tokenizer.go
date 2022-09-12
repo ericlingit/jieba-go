@@ -54,7 +54,6 @@ func (tk *Tokenizer) initialize() {
 		if pdErr != nil {
 			log.Fatalf("failed to build prefix dictionary: %v", pdErr)
 		}
-
 		tk.initOk = true
 		return
 	}
@@ -68,7 +67,7 @@ func (tk *Tokenizer) initialize() {
 	pfDict := map[string]int{}
 	decoder := gob.NewDecoder(gobFile)
 	if err := decoder.Decode(&pfDict); err != nil {
-		log.Fatalf("failed to decode pfDict: %v", err)
+		log.Fatalf("failed to decode pfDict from gobFile: %v", err)
 	}
 	tk.prefixDict = pfDict
 	tk.initOk = true
@@ -152,8 +151,9 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 			}
 		}
 	}
+	// fmt.Println("pieces:", pieces)
 
-	dag := map[int][]int{}
+	dag := make(map[int][]int, len(textRunes))
 	for _, p := range pieces {
 		val, found := dag[p[0]]
 		if !found {
@@ -162,6 +162,7 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 			dag[p[0]] = append(val, p[1])
 		}
 	}
+	// fmt.Println("dag:", dag)
 	tk.dag = dag
 	return dag
 }
@@ -211,7 +212,6 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			// 	j,
 			// 	x,
 			// )
-			// fmt.Println(i, j)
 		}
 	}
 	tk.dagProba = dagProba
