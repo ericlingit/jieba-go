@@ -630,6 +630,37 @@ func BenchmarkFindDAGPath(b *testing.B) {
 	}
 }
 
+// 1,140 ns/op
+func BenchmarkFindBestPath(b *testing.B) {
+	tk := Tokenizer{}
+	dagProba := map[int]map[int]float64{
+		18: {19: 1.1},
+		17: {18: 1.1},
+		16: {17: 1.1, 18: 2.2}, // 子, 子力
+		15: {16: 1.1, 17: 2.2}, // 量, 量子
+		14: {15: 1.1},
+		13: {14: 1.1},
+		12: {13: 1.1},
+		11: {12: 1.1},
+		10: {11: 1.1},
+		9:  {10: 1.1},
+		8:  {9: 1.1},
+		7:  {8: 1.1},
+		6:  {7: 1.1},
+		5:  {6: 1.1},
+		4:  {6: 2.2, 5: 1.1}, // 上海, 上
+		3:  {4: 1.1},
+		2:  {3: 1.1},
+		1:  {2: 1.1, 3: 2.2}, // 昨, 昨天
+		0:  {1: 1.1},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.findBestPath("我昨天去上海交通大學與老師討論量子力學", dagProba)
+	}
+}
+
 /*
 go test -bench=. -benchmem
 goos: linux
@@ -639,6 +670,7 @@ cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
 BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
 BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
 BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
+BenchmarkFindBestPath-6           998020              1140 ns/op             496 B/op          5 allocs/op
 */
 
 // func savePrefixDictionaryToGob() {
