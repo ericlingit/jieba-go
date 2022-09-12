@@ -172,10 +172,10 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 // The return value's index are based on []rune(text).
 func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 	total := math.Log(float64(tk.dictSize))
-	dagProba := map[int]map[int]float64{}
+	textRunes := []rune(text)
+	dagProba := make(map[int]map[int]float64, len(textRunes))
 
 	// Iterate through `textRunes` in reverse.
-	textRunes := []rune(text)
 	for i := len(textRunes) - 1; i >= 0; i-- {
 		// fmt.Printf("%q\n", string(textRunes[i]))
 		dagProba[i] = map[int]float64{}

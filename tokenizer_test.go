@@ -596,7 +596,7 @@ func BenchmarkBuildDag(b *testing.B) {
 	}
 }
 
-// 9,968 ns/op
+// 9,598 ns/op
 func BenchmarkFindDAGPath(b *testing.B) {
 	tk := Tokenizer{}
 	tk.initOk = true
@@ -638,7 +638,7 @@ pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
 BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
 BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
-BenchmarkFindDAGPath-6            110143              9968 ns/op            6214 B/op         87 allocs/op
+BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
 */
 
 // func savePrefixDictionaryToGob() {
