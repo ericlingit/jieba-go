@@ -467,19 +467,6 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
 }
 
-// 140,353,760 ns/op
-func BenchmarkBuildPrefDict(b *testing.B) {
-	tk := Tokenizer{}
-	tk.CustomDict = "dict.txt"
-	lines := loadDictionaryFile(tk.CustomDict)
-
-	// Run benchmark.
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		tk.buildPrefixDictionary(lines)
-	}
-}
-
 func TestInitialize(t *testing.T) {
 	t.Run("with custom dictionary", func(t *testing.T) {
 		f, _ := os.CreateTemp("", "aaa.txt")
@@ -582,6 +569,42 @@ func loadDictionaryFile(f string) []string {
 	reader.Close()
 	return lines
 }
+
+// 140,353,760 ns/op
+func BenchmarkBuildPrefDict(b *testing.B) {
+	tk := Tokenizer{}
+	tk.CustomDict = "dict.txt"
+	lines := loadDictionaryFile(tk.CustomDict)
+
+	// Run benchmark.
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.buildPrefixDictionary(lines)
+	}
+}
+
+// 4,934 ns/op
+func BenchmarkBuildDag(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.buildDAG("我昨天去上海交通大學與老師討論量子力學")
+	}
+}
+
+/*
+go test -bench=. -benchmem
+goos: linux
+goarch: amd64
+pkg: github.com/ericlingit/jieba-go
+cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
+BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
+BenchmarkBuildDag-6               237704              4934 ns/op            3413 B/op         34 allocs/op
+*/
 
 // func savePrefixDictionaryToGob() {
 // 	// Read dict.txt.
