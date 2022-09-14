@@ -314,7 +314,7 @@ func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenState
 		"S": {"E", "S"},
 	}
 
-	// List all possible routes and their log probabilities.
+	// List all possible routes and calculate their log probabilities.
 	routes := map[string]float64{}
 	for _, prevState := range stateChange[nowState] {
 		prevProb := hiddenStates[step-1][prevState]

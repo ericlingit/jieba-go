@@ -692,6 +692,18 @@ func BenchmarkCutDag(b *testing.B) {
 	}
 }
 
+// 64,731 ns/op
+func BenchmarkViterbi(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.loadHMM()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.viterbi("我昨天去上海交通大學與老師討論量子力學")
+	}
+}
+
 // 42,705 ns/op
 func BenchmarkCut(b *testing.B) {
 	tk := Tokenizer{}
@@ -735,6 +747,7 @@ BenchmarkBuildDag-6               282723              4289 ns/op            2473
 BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
 BenchmarkFindBestPath-6           998020              1140 ns/op             496 B/op          5 allocs/op
 BenchmarkCutDag-6                1000000              1039 ns/op             624 B/op         21 allocs/op
+BenchmarkViterbi-6                 17833             64731 ns/op           52982 B/op        508 allocs/op
 BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
 
 BenchmarkCutBigText-6 (killed: out of memory)
