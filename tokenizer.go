@@ -246,6 +246,17 @@ func (tk *Tokenizer) maxIndexProba(probaIndex map[int]float64) (int, float64) {
 	return bestIndex, bestProba
 }
 
+// Cut `text` using a DAG path built from a prefix dictionary.
+func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
+	textRune := []rune(text)
+	pieces := []string{}
+	for _, dagIndex := range dagPath {
+		p := string(textRune[dagIndex[0]:dagIndex[1]])
+		pieces = append(pieces, p)
+	}
+	return pieces
+}
+
 // Load jieba's trained Hidden Markov model.
 func (tk *Tokenizer) loadHMM() {
 	tk.startP = map[string]float64{
@@ -399,17 +410,6 @@ func (tk *Tokenizer) cutHMM(text string, viterbiPath []string) []string {
 			pieces = append(pieces, string(textRune[pieceStart:pieceEnd]))
 			pieceStart = pieceEnd
 		}
-	}
-	return pieces
-}
-
-// Cut `text` using a DAG path built from a prefix dictionary.
-func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
-	textRune := []rune(text)
-	pieces := []string{}
-	for _, dagIndex := range dagPath {
-		p := string(textRune[dagIndex[0]:dagIndex[1]])
-		pieces = append(pieces, p)
 	}
 	return pieces
 }
