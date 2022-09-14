@@ -19,6 +19,7 @@ const minFloat float64 = -3.14e100
 type Tokenizer struct {
 	CustomDict string
 	initOk     bool
+	hmmOk      bool
 	prefixDict map[string]int
 	dictSize   int
 	startP     map[string]float64
@@ -293,6 +294,7 @@ func (tk *Tokenizer) loadHMM() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
 	}
+	tk.hmmOk = true
 }
 
 type transitionRoute struct {
@@ -425,7 +427,9 @@ func (tk *Tokenizer) cutText(text string, hmm bool) []string {
 	}
 
 	// Use HMM to segment uncut chars in dagPieces.
-	tk.loadHMM()
+	if !tk.hmmOk {
+		tk.loadHMM()
+	}
 	words := []string{}
 	uncutRunes := []rune{}
 	for i, piece := range dagPieces {

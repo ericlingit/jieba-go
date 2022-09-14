@@ -661,6 +661,69 @@ func BenchmarkFindBestPath(b *testing.B) {
 	}
 }
 
+// 1,039 ns/op
+func BenchmarkCutDag(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+	dag := [][2]int{
+		{0, 1},
+		{1, 3}, // 昨天
+		{3, 4},
+		{4, 6}, // 上海
+		{6, 7},
+		{7, 8},
+		{8, 9},
+		{9, 10},
+		{10, 11},
+		{11, 12},
+		{12, 13},
+		{13, 14},
+		{14, 15},
+		{15, 17}, // 量子
+		{17, 18},
+		{18, 19},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.cutDAG("我昨天去上海交通大學與老師討論量子力學", dag)
+	}
+}
+
+// 42,705 ns/op
+func BenchmarkCut(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.loadHMM()
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.Cut("我昨天去上海交通大學與老師討論量子力學", true)
+	}
+}
+
+// // CutBigText: OUT OF MEMORY
+// func BenchmarkCutBigText(b *testing.B) {
+// 	tk := Tokenizer{}
+// 	tk.initOk = true
+// 	tk.loadHMM()
+// 	tk.prefixDict = prefixDictionary
+// 	tk.dictSize = dictSize
+// 	data, err := os.ReadFile("围城.txt")
+// 	if err != nil {
+// 		b.Fatal("failed to open 围城.txt", err)
+// 	}
+// 	text := string(data)
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		tk.Cut(text, true)
+// 	}
+// }
+
 /*
 go test -bench=. -benchmem
 goos: linux
@@ -671,6 +734,10 @@ BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594
 BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
 BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
 BenchmarkFindBestPath-6           998020              1140 ns/op             496 B/op          5 allocs/op
+BenchmarkCutDag-6                1000000              1039 ns/op             624 B/op         21 allocs/op
+BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
+
+BenchmarkCutBigText-6 (killed: out of memory)
 */
 
 // func savePrefixDictionaryToGob() {
