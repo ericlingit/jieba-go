@@ -534,7 +534,7 @@ var alnum = regexp.MustCompile(`([a-zA-Z0-9]+)`)
 func processNonZh(text string) []string {
 	alnumIdx := alnum.FindAllIndex([]byte(text), -1)
 	if len(alnumIdx) == 0 {
-		return []string{""}
+		return []string{}
 	}
 
 	textPieces := []string{}
