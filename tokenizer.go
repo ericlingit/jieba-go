@@ -394,11 +394,11 @@ func (tk *Tokenizer) viterbi(text string) []string {
 	// whichever has the highest hidden state probability.
 	e := hiddenStateProba[len(textRune)-1]["E"]
 	s := hiddenStateProba[len(textRune)-1]["S"]
-	finalState := "E"
-	if e < s {
-		finalState = "S"
+	if e > s {
+		return fullPath["E"]
+	} else {
+		return fullPath["S"]
 	}
-	return fullPath[finalState]
 }
 
 // Cut `text` according the the path found by the Viterbi algorithm.
