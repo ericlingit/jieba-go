@@ -459,14 +459,8 @@ func TestBuildDAG(t *testing.T) {
 			3: {4},    // text[3:4] == 氣
 			4: {5},    // text[4:5] == 很
 			5: {6},    // text[5:6] == 好
-		}
-		got := tk.buildDAG(text1)
-		assertDeepEqual(t, want, got)
-	})
-
-	text2 := "我昨天去上海交通大學與老師討論量子力學"
-	t.Run(fmt.Sprintf("DAG %s", text2), func(t *testing.T) {
-		want := map[int][]int{
+		}},
+		{"我昨天去上海交通大學與老師討論量子力學", map[int][]int{
 			0:  {1},
 			1:  {2, 3}, // 昨 昨天
 			2:  {3},
@@ -720,26 +714,26 @@ func BenchmarkFindDAGPath(b *testing.B) {
 // 1,140 ns/op
 func BenchmarkFindBestPath(b *testing.B) {
 	tk := Tokenizer{}
-	dagProba := map[int]map[int]float64{
-		18: {19: 1.1},
-		17: {18: 1.1},
-		16: {17: 1.1, 18: 2.2}, // 子, 子力
-		15: {16: 1.1, 17: 2.2}, // 量, 量子
-		14: {15: 1.1},
-		13: {14: 1.1},
-		12: {13: 1.1},
-		11: {12: 1.1},
-		10: {11: 1.1},
-		9:  {10: 1.1},
-		8:  {9: 1.1},
-		7:  {8: 1.1},
-		6:  {7: 1.1},
-		5:  {6: 1.1},
-		4:  {6: 2.2, 5: 1.1}, // 上海, 上
-		3:  {4: 1.1},
-		2:  {3: 1.1},
-		1:  {2: 1.1, 3: 2.2}, // 昨, 昨天
-		0:  {1: 1.1},
+	dagProba := map[int][]TailProba{
+		18: {{19, 1.1}},
+		17: {{18, 1.1}},
+		16: {{17, 1.1}, {18, 2.2}}, // 子, 子力
+		15: {{16, 1.1}, {17, 2.2}}, // 量, 量子
+		14: {{15, 1.1}},
+		13: {{14, 1.1}},
+		12: {{13, 1.1}},
+		11: {{12, 1.1}},
+		10: {{11, 1.1}},
+		9:  {{10, 1.1}},
+		8:  {{9, 1.1}},
+		7:  {{8, 1.1}},
+		6:  {{7, 1.1}},
+		5:  {{6, 1.1}},
+		4:  {{6, 2.2}, {5, 1.1}}, // 上海, 上
+		3:  {{4, 1.1}},
+		2:  {{3, 1.1}},
+		1:  {{2, 1.1}, {3, 2.2}}, // 昨, 昨天
+		0:  {{1, 1.1}},
 	}
 
 	b.ResetTimer()
@@ -805,23 +799,23 @@ func BenchmarkCut(b *testing.B) {
 	}
 }
 
-// // CutBigText: OUT OF MEMORY
-// func BenchmarkCutBigText(b *testing.B) {
-// 	tk := Tokenizer{}
-// 	tk.initOk = true
-// 	tk.loadHMM()
-// 	tk.prefixDict = prefixDictionary
-// 	tk.dictSize = dictSize
-// 	data, err := os.ReadFile("围城.txt")
-// 	if err != nil {
-// 		b.Fatal("failed to open 围城.txt", err)
-// 	}
-// 	text := string(data)
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		tk.Cut(text, true)
-// 	}
-// }
+// 318,559,415 ns/op
+func BenchmarkCutBigText(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.loadHMM()
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		b.Fatal("failed to open 围城.txt", err)
+	}
+	text := string(data)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.Cut(text, true)
+	}
+}
 
 /*
 go test -bench=. -benchmem
@@ -836,8 +830,7 @@ BenchmarkFindBestPath-6           998020              1140 ns/op             496
 BenchmarkCutDag-6                1000000              1039 ns/op             624 B/op         21 allocs/op
 BenchmarkViterbi-6                 17833             64731 ns/op           52982 B/op        508 allocs/op
 BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
-
-BenchmarkCutBigText-6 (killed: out of memory)
+BenchmarkCutBigText-6                  4         318559415 ns/op        134310316 B/op   2331746 allocs/op
 */
 
 // func savePrefixDictionaryToGob() {
