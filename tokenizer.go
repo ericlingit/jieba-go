@@ -137,7 +137,8 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 	textRunes := []rune(text)
 	pieces := [][2]int{}
 	for i, iRune := range textRunes {
-		if _, found := tk.prefixDict[string(iRune)]; !found {
+		count, found := tk.prefixDict[string(iRune)]
+		if !found || count == 0 {
 			pieces = append(pieces, [2]int{i, i + 1})
 			continue
 		}
@@ -231,7 +232,7 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int][]TailProba) [][
 	textRunes := []rune(text)
 
 	bestPath := [][2]int{}
-	for i := 0; i < len(textRunes); {
+	for i := 0; i < len(textRunes) && i >= 0; {
 		tail := tk.maxIndexProba(dagProba[i])
 		bestPath = append(bestPath, [2]int{i, tail.Index})
 		i = tail.Index
@@ -240,16 +241,19 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int][]TailProba) [][
 }
 
 // Return the map key whose float value is the highest.
-func (tk *Tokenizer) maxIndexProba(probaIndex map[int]float64) (int, float64) {
-	bestIndex := -1
-	bestProba := minFloat
-	for i, proba := range probaIndex {
-		if proba > bestProba {
-			bestProba = proba
-			bestIndex = i
+func (tk *Tokenizer) maxIndexProba(items []TailProba) TailProba {
+	prev := TailProba{-1, minFloat}
+	best := TailProba{-1, minFloat}
+	for _, item := range items {
+		if item.Proba >= prev.Proba {
+			best = item
 		}
+		prev = item
 	}
-	return bestIndex, bestProba
+	if best.Index == -1 {
+		return prev
+	}
+	return best
 }
 
 // Cut `text` using a DAG path built from a prefix dictionary.

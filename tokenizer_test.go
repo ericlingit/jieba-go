@@ -73,6 +73,9 @@ func TestCut(t *testing.T) {
 		{"cut 5", "abc123", []string{"abc123"}, false},
 		{"cut 6", "a1+1=2", []string{"a1", "+", "1", "=", "2"}, false},
 		{"cut 7", "aaa\nbbb", []string{"aaa", "bbb"}, false},
+		{"cut 8", "这一刹那的撙近", []string{"这", "一刹那", "的", "撙", "近"}, false},
+		{"cut 9", "这一刹那的撙近", []string{"这", "一刹那", "的", "撙近"}, true},
+		{"cut 10", "撙", []string{"撙"}, false}, // This character causes memory leak.
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -84,6 +87,20 @@ func TestCut(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCutBigText(t *testing.T) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	tk.loadHMM()
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		t.Fatal("failed to open 围城.txt", err)
+	}
+	text := string(data)
+	tk.Cut(text, true)
 }
 
 func TestCutDag(t *testing.T) {
@@ -431,9 +448,11 @@ func TestBuildDAG(t *testing.T) {
 	tk.prefixDict = prefixDictionary
 	tk.dictSize = dictSize
 
-	text1 := "今天天氣很好"
-	t.Run(fmt.Sprintf("DAG %s", text1), func(t *testing.T) {
-		want := map[int][]int{
+	cases := []struct {
+		text string
+		want map[int][]int
+	}{
+		{"今天天氣很好", map[int][]int{
 			0: {1, 2}, // text[0:1], text[0:2] == 今, 今天
 			1: {2, 3}, // text[1:2], text[1:3] == 天, 天天
 			2: {3},    // text[2:3] == 天
