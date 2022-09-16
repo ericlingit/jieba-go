@@ -27,7 +27,7 @@ type Tokenizer struct {
 	emitP      map[string]map[string]float64
 	// Values below are for debugging.
 	dag      map[int][]int
-	dagProba map[int]map[int]float64
+	dagProba map[int][]TailProba
 }
 
 // Initialize the Tokenizer. If CustomDict is specified, a prefix
@@ -168,18 +168,23 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 	return dag
 }
 
+type TailProba struct {
+	Index int
+	Proba float64
+}
+
 // Calculate the log probability of each DAG path (piece),
 // and return the best path for each rune in `text`.
 // The return value's index are based on []rune(text).
 func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 	total := math.Log(float64(tk.dictSize))
 	textRunes := []rune(text)
-	dagProba := make(map[int]map[int]float64, len(textRunes))
+	dagProba := make(map[int][]TailProba, len(textRunes))
 
 	// Iterate through `textRunes` in reverse.
 	for i := len(textRunes) - 1; i >= 0; i-- {
 		// fmt.Printf("%q\n", string(textRunes[i]))
-		dagProba[i] = map[int]float64{}
+		dagProba[i] = []TailProba{}
 		for _, j := range dag[i] {
 			// Calculate current piece's probability.
 			// piece_frequency = log(prefix_dictionary.get(piece) or 1.0) - total
@@ -191,15 +196,15 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			pieceFreq := math.Log(tf) - total
 
 			// Get next piece's probability.
-			nextPiece := map[int]float64{j: 0.0}
+			nextPiece := []TailProba{{j, 0.0}}
 			if val, found := dagProba[j]; found {
 				nextPiece = val
 			}
 			// There could be more than 1 nextPiece, use the one
 			// with the highest log probability.
-			_, nextPieceBestProba := tk.maxIndexProba(nextPiece)
-			pieceProba := pieceFreq + nextPieceBestProba
-			dagProba[i][j] = pieceProba
+			nextBestPiece := tk.maxIndexProba(nextPiece)
+			pieceProba := pieceFreq + nextBestPiece.Proba
+			dagProba[i] = append(dagProba[i], TailProba{j, pieceProba})
 			// fmt.Printf(
 			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sProba dagProba[%d][%d])\n",
 			// 	string(textRunes[i:j]),
@@ -208,7 +213,7 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			// 	pieceProba,
 			// 	pieceFreq,
 			// 	string(textRunes[i:j]),
-			// 	nextPieceBestProba,
+			// 	nextBestPiece.Proba,
 			// 	string(textRunes[j:x]),
 			// 	j,
 			// 	x,
@@ -222,14 +227,14 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 
 // Find the path with the highest probability.
 // This is a helper method for findDAGPath().
-func (tk *Tokenizer) findBestPath(text string, dagProba map[int]map[int]float64) [][2]int {
+func (tk *Tokenizer) findBestPath(text string, dagProba map[int][]TailProba) [][2]int {
 	textRunes := []rune(text)
 
 	bestPath := [][2]int{}
 	for i := 0; i < len(textRunes); {
-		j, _ := tk.maxIndexProba(dagProba[i])
-		bestPath = append(bestPath, [2]int{i, j})
-		i = j
+		tail := tk.maxIndexProba(dagProba[i])
+		bestPath = append(bestPath, [2]int{i, tail.Index})
+		i = tail.Index
 	}
 	return bestPath
 }

@@ -289,86 +289,140 @@ func TestFindDAGPath(t *testing.T) {
 
 func TestFindBestPath(t *testing.T) {
 	tk := Tokenizer{}
-	t.Run("path1", func(t *testing.T) {
-		dagProba := map[int]map[int]float64{
-			5: {6: 1.1},         // 好
-			4: {5: 1.1},         // 很
-			3: {4: 1.1},         // 氣
-			2: {3: 1.1},         // 天
-			1: {2: 1.1, 3: 2.2}, // 天, 天天
-			0: {1: 1.1, 2: 2.2}, // 今, 今天
-		}
-		want := [][2]int{
-			{0, 2}, // 今天
-			{2, 3},
-			{3, 4},
-			{4, 5},
-			{5, 6},
-		}
-		text := "今天天氣很好"
-		got := tk.findBestPath(text, dagProba)
-		assertDeepEqual(t, want, got)
-	})
-
-	t.Run("path2", func(t *testing.T) {
-		dagProba := map[int]map[int]float64{
-			18: {19: 1.1},
-			17: {18: 1.1},
-			16: {17: 1.1, 18: 2.2}, // 子, 子力
-			15: {16: 1.1, 17: 2.2}, // 量, 量子
-			14: {15: 1.1},
-			13: {14: 1.1},
-			12: {13: 1.1},
-			11: {12: 1.1},
-			10: {11: 1.1},
-			9:  {10: 1.1},
-			8:  {9: 1.1},
-			7:  {8: 1.1},
-			6:  {7: 1.1},
-			5:  {6: 1.1},
-			4:  {6: 2.2, 5: 1.1}, // 上海, 上
-			3:  {4: 1.1},
-			2:  {3: 1.1},
-			1:  {2: 1.1, 3: 2.2}, // 昨, 昨天
-			0:  {1: 1.1},
-		}
-		want := [][2]int{
-			{0, 1},
-			{1, 3}, // 昨天
-			{3, 4},
-			{4, 6}, // 上海
-			{6, 7},
-			{7, 8},
-			{8, 9},
-			{9, 10},
-			{10, 11},
-			{11, 12},
-			{12, 13},
-			{13, 14},
-			{14, 15},
-			{15, 17}, // 量子
-			{17, 18},
-			{18, 19},
-		}
-		text := "我昨天去上海交通大學與老師討論量子力學"
-		got := tk.findBestPath(text, dagProba)
-		assertDeepEqual(t, want, got)
-	})
+	cases := []struct {
+		text     string
+		dagProba map[int][]TailProba
+		want     [][2]int
+	}{
+		{
+			"今天天氣很好",
+			map[int][]TailProba{
+				5: {{6, 1.1}},           // 好
+				4: {{5, 1.1}},           // 很
+				3: {{4, 1.1}},           // 氣
+				2: {{3, 1.1}},           // 天
+				1: {{2, 1.1}, {3, 2.2}}, // 天, 天天
+				0: {{1, 1.1}, {2, 2.2}}, // 今, 今天
+			},
+			[][2]int{
+				{0, 2}, // 今天
+				{2, 3},
+				{3, 4},
+				{4, 5},
+				{5, 6},
+			},
+		},
+		{
+			"我昨天去上海交通大學與老師討論量子力學",
+			map[int][]TailProba{
+				18: {{19, 1.1}},
+				17: {{18, 1.1}},
+				16: {{17, 1.1}, {18, 2.2}}, // 子, 子力
+				15: {{16, 1.1}, {17, 2.2}}, // 量, 量子
+				14: {{15, 1.1}},
+				13: {{14, 1.1}},
+				12: {{13, 1.1}},
+				11: {{12, 1.1}},
+				10: {{11, 1.1}},
+				9:  {{10, 1.1}},
+				8:  {{9, 1.1}},
+				7:  {{8, 1.1}},
+				6:  {{7, 1.1}},
+				5:  {{6, 1.1}},
+				4:  {{6, 2.2}, {5, 1.1}}, // 上海, 上
+				3:  {{4, 1.1}},
+				2:  {{3, 1.1}},
+				1:  {{2, 1.1}, {3, 2.2}}, // 昨, 昨天
+				0:  {{1, 1.1}},
+			},
+			[][2]int{
+				{0, 1},
+				{1, 3}, // 昨天
+				{3, 4},
+				{4, 6}, // 上海
+				{6, 7},
+				{7, 8},
+				{8, 9},
+				{9, 10},
+				{10, 11},
+				{11, 12},
+				{12, 13},
+				{13, 14},
+				{14, 15},
+				{15, 17}, // 量子
+				{17, 18},
+				{18, 19},
+			},
+		},
+		{
+			"这一刹那的撙近",
+			map[int][]TailProba{
+				6: {{7, 1.1}},                     // 近
+				5: {{6, 1.1}},                     // 撙
+				4: {{5, 1.1}},                     // 的
+				3: {{4, 1.1}},                     // 那
+				2: {{3, 1.1}, {4, 2.2}},           // 刹 刹那
+				1: {{2, 1.1}, {3, 2.2}, {4, 3.3}}, // 一 一刹 一刹那
+				0: {{1, 1.1}},                     // 这
+			},
+			[][2]int{
+				{0, 1}, // 这
+				{1, 4}, // 一刹那
+				{4, 5}, // 的
+				{5, 6}, // 撙
+				{6, 7}, // 近
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.text, func(t *testing.T) {
+			got := tk.findBestPath(c.text, c.dagProba)
+			assertDeepEqual(t, c.want, got)
+		})
+	}
 }
 
 func TestMaxIndexProba(t *testing.T) {
 	tk := Tokenizer{}
-	given := map[int]float64{
-		0: 0.0,
-		1: 1.1,
-		2: 2.2,
-		3: -3.3,
+	cases := []struct {
+		candidates []TailProba
+		wantIdx    int
+		wantProba  float64
+	}{
+		{
+			[]TailProba{
+				{0, 0.0},
+				{1, 1.1},
+				{2, 2.2},
+				{3, -3.3},
+			},
+			2,
+			2.2,
+		},
+		{
+			[]TailProba{
+				{5, -3.14e100},
+			},
+			5,
+			-3.14e100,
+		},
+		{
+			[]TailProba{
+				{2, -3.14e100},
+				{3, -3.14e100},
+				{4, -3.14e100},
+			},
+			4,
+			-3.14e100,
+		},
 	}
-	wantIdx := 2
-	wantProba := 2.2
-	gotIdx, gotProba := tk.maxIndexProba(given)
-	assertEqual(t, wantIdx, gotIdx)
-	assertEqual(t, wantProba, gotProba)
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			got := tk.maxIndexProba(c.candidates)
+			assertEqual(t, c.wantIdx, got.Index)
+			assertEqual(t, c.wantProba, got.Proba)
+		})
+	}
 }
 
 func TestBuildDAG(t *testing.T) {
@@ -413,10 +467,24 @@ func TestBuildDAG(t *testing.T) {
 			16: {17, 18}, // 子 子力
 			17: {18},
 			18: {19},
-		}
-		got := tk.buildDAG(text2)
-		assertDeepEqual(t, want, got)
-	})
+		}},
+		{"这一刹那的撙近", map[int][]int{
+			0: {1},
+			1: {2, 3, 4}, // 一 一刹 一刹那
+			2: {3, 4},    // 刹 刹那
+			3: {4},
+			4: {5},
+			5: {6},
+			6: {7},
+		}},
+		{"撙", map[int][]int{0: {1}}}, // "撙" is in prefix dict; has count == 0.
+	}
+	for _, c := range cases {
+		t.Run(c.text, func(t *testing.T) {
+			got := tk.buildDAG(c.text)
+			assertDeepEqual(t, c.want, got)
+		})
+	}
 }
 
 func TestBuildPrefixDict(t *testing.T) {
