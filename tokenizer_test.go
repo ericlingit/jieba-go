@@ -786,14 +786,14 @@ goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkCutBigText-6                  4         318559415 ns/op        134310316 B/op   2331746 allocs/op
-BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
-BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
-BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
-BenchmarkFindBestPath-6           998020              1140 ns/op             496 B/op          5 allocs/op
-BenchmarkCutDag-6                1000000              1039 ns/op             624 B/op         21 allocs/op
-BenchmarkViterbi-6                 17833             64731 ns/op           52982 B/op        508 allocs/op
-BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
+BenchmarkCutBigText-6                  4         316808279 ns/op        134361028 B/op   2331799 allocs/op
+BenchmarkCut-6                     31472             36895 ns/op           19716 B/op        322 allocs/op
+BenchmarkBuildDag-6               251918              4237 ns/op            2473 B/op         32 allocs/op
+BenchmarkFindDAGPath-6            243849              4607 ns/op            2161 B/op         30 allocs/op
+BenchmarkFindBestPath-6          2248059               528 ns/op             496 B/op          5 allocs/op
+BenchmarkCutDag-6                1000000              1064 ns/op             624 B/op         21 allocs/op
+BenchmarkViterbi-6                 17935             66896 ns/op           52982 B/op        508 allocs/op
+BenchmarkBuildPrefDict-6               7         149018897 ns/op        51680593 B/op    1346011 allocs/op
 */
 
 func assertDeepEqual(t *testing.T, want, got interface{}) {
