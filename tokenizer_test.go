@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/gob"
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"testing"
@@ -14,39 +15,19 @@ const dictSize = 60_101_967
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
 func TestCutBigTextParallel(t *testing.T) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-	tk.loadHMM()
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		t.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
+	tk := newTokenizer(true)
+	text := loadBigText()
 	tk.CutParallel(text, true, 6)
 }
 
 func TestCutBigText(t *testing.T) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-	tk.loadHMM()
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		t.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
+	tk := newTokenizer(true)
+	text := loadBigText()
 	tk.Cut(text, true)
 }
 
 func TestCut(t *testing.T) {
-	tk := Tokenizer{}
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-	tk.loadHMM()
-
+	tk := newTokenizer(true)
 	cases := []struct {
 		name string
 		text string
@@ -100,11 +81,7 @@ func TestSplitText(t *testing.T) {
 }
 
 func TestBuildDAG(t *testing.T) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
-
+	tk := newTokenizer(false)
 	cases := []struct {
 		text string
 		want map[int][]int
@@ -158,11 +135,7 @@ func TestBuildDAG(t *testing.T) {
 }
 
 func TestFindDAGPath(t *testing.T) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
-
+	tk := newTokenizer(false)
 	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
 		text := "今天天氣很好"
 		dag := map[int][]int{
@@ -369,10 +342,7 @@ func TestFindBestPath(t *testing.T) {
 }
 
 func TestCutDag(t *testing.T) {
-	tk := Tokenizer{}
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-
+	tk := newTokenizer(false)
 	t.Run("cut dag 1", func(t *testing.T) {
 		text := "今天天氣很好"
 		dPath := [][2]int{
@@ -413,7 +383,7 @@ func TestCutDag(t *testing.T) {
 }
 
 func TestLoadHMM(t *testing.T) {
-	tk := Tokenizer{}
+	tk := newTokenizer(false)
 	tk.loadHMM()
 	if tk.emitP["B"]["一"] != -3.6544978750449433 {
 		t.Error("load HMM failed")
@@ -430,9 +400,7 @@ func TestLoadHMM(t *testing.T) {
 }
 
 func TestViterbi(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
-
+	tk := newTokenizer(true)
 	t.Run("viterbi case 1", func(t *testing.T) {
 		text := "天氣很好"
 		want := []string{"B", "E", "S", "S"}
@@ -449,9 +417,7 @@ func TestViterbi(t *testing.T) {
 }
 
 func TestStateTransitionRoute(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
-
+	tk := newTokenizer(true)
 	hsProb := map[int]map[string]float64{
 		0: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
 		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
@@ -476,8 +442,7 @@ func TestStateTransitionRoute(t *testing.T) {
 }
 
 func TestCutHMM(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
+	tk := newTokenizer(true)
 	t.Run("cut hmm 1", func(t *testing.T) {
 		text := "天氣很好"
 		vPath := []string{"B", "E", "S", "S"}
@@ -602,7 +567,6 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 	lines := loadDictionaryFile(tk.CustomDict)
 
 	tk.buildPrefixDictionary(lines)
-
 	// Compare ALL items in `prefixDictionary` to
 	// `tk.prefixDict`.
 	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
@@ -614,16 +578,9 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 
 // 92,710,594 ns/op
 func BenchmarkCutBigTextParallel(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		b.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
+	tk := newTokenizer(true)
+	text := loadBigText()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tk.CutParallel(text, true, 6)
@@ -632,16 +589,9 @@ func BenchmarkCutBigTextParallel(b *testing.B) {
 
 // 318,559,415 ns/op
 func BenchmarkCutBigText(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		b.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
+	tk := newTokenizer(true)
+	text := loadBigText()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tk.Cut(text, true)
@@ -650,11 +600,7 @@ func BenchmarkCutBigText(b *testing.B) {
 
 // 42,705 ns/op
 func BenchmarkCut(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk := newTokenizer(true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -664,10 +610,7 @@ func BenchmarkCut(b *testing.B) {
 
 // 4,4289 ns/op
 func BenchmarkBuildDag(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk := newTokenizer(true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -677,10 +620,7 @@ func BenchmarkBuildDag(b *testing.B) {
 
 // 9,598 ns/op
 func BenchmarkFindDAGPath(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk := newTokenizer(false)
 	dag := map[int][]int{
 		0:  {1},
 		1:  {2, 3}, // 昨 昨天
@@ -742,10 +682,7 @@ func BenchmarkFindBestPath(b *testing.B) {
 
 // 1,039 ns/op
 func BenchmarkCutDag(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk := newTokenizer(false)
 	dag := [][2]int{
 		{0, 1},
 		{1, 3}, // 昨天
@@ -773,9 +710,7 @@ func BenchmarkCutDag(b *testing.B) {
 
 // 64,731 ns/op
 func BenchmarkViterbi(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
+	tk := newTokenizer(true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -789,7 +724,6 @@ func BenchmarkBuildPrefDict(b *testing.B) {
 	tk.CustomDict = "dict.txt"
 	lines := loadDictionaryFile(tk.CustomDict)
 
-	// Run benchmark.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tk.buildPrefixDictionary(lines)
@@ -813,6 +747,17 @@ BenchmarkViterbi-6                         17935             66896 ns/op        
 BenchmarkBuildPrefDict-6                       7         149018897 ns/op        51680593 B/op    1346011 allocs/op
 */
 
+func newTokenizer(hmm bool) Tokenizer {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	if hmm {
+		tk.loadHMM()
+	}
+	return tk
+}
+
 func assertDeepEqual(t *testing.T, want, got interface{}) {
 	t.Helper()
 	if !reflect.DeepEqual(want, got) {
@@ -831,12 +776,19 @@ func assertEqual(t *testing.T, want, got interface{}) {
 // much faster than calling DeepEqual.
 func assertDeepEqualLoop(t *testing.T, want, got map[string]int) {
 	t.Helper()
-
 	for k, v := range want {
 		if v != got[k] {
 			t.Errorf("%q want %v, got %v", k, v, got[k])
 		}
 	}
+}
+
+func loadBigText() string {
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		log.Fatal("failed to open 围城.txt", err)
+	}
+	return string(data)
 }
 
 // Load a prefix dictionary created from jieba's dict.txt.
