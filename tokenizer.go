@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -46,6 +47,55 @@ type tailProba struct {
 type transitionRoute struct {
 	from  string
 	proba float64
+}
+
+// Perform Cut in worker goroutines in parallel.
+func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int) []string {
+	// Split text into zh and non-zh blocks.
+	blocks := make(chan textBlock, len(text))
+	zhIndexes := zh.FindAllIndex([]byte(text), -1)
+	go func() {
+		defer close(blocks)
+		for _, block := range splitText(text, zhIndexes) {
+			blocks <- block
+		}
+	}()
+	// Launch worker goroutines that fetch work from `blocks`.
+	// Completed work are sent to `result`.
+	result := make(chan []string, len(text))
+	stop := make(chan struct{})
+	defer close(stop)
+	wg := sync.WaitGroup{}
+	wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			tk.worker(blocks, stop, result)
+			wg.Done()
+		}()
+	}
+	go func() {
+		defer close(result)
+		wg.Wait()
+	}()
+	// Collect tokens from `result`.
+	tokens := []string{}
+	for r := range result {
+		tokens = append(tokens, r...)
+	}
+	return tokens
+}
+
+// Worker for CutParallel() method.
+// A worker fetches work from `blocks` channel, processes the
+// block, and sends the result to the `result` channel.
+func (tk *Tokenizer) worker(blocks chan textBlock, stop chan struct{}, result chan []string) {
+	for b := range blocks {
+		select {
+		case <-stop:
+			return
+		case result <- tk.cutBlock(b, true):
+		}
+	}
 }
 
 // Cut text and return a slice of tokens.

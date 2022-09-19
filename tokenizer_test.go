@@ -13,6 +13,20 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
+func TestCutBigTextParallel(t *testing.T) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	tk.loadHMM()
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		t.Fatal("failed to open 围城.txt", err)
+	}
+	text := string(data)
+	tk.CutParallel(text, true, 6)
+}
+
 func TestCutBigText(t *testing.T) {
 	tk := Tokenizer{}
 	tk.initOk = true
@@ -594,7 +608,27 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
 }
 
+//
 // Benchmarks.
+//
+
+// 92,710,594 ns/op
+func BenchmarkCutBigTextParallel(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.loadHMM()
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		b.Fatal("failed to open 围城.txt", err)
+	}
+	text := string(data)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.CutParallel(text, true, 6)
+	}
+}
 
 // 318,559,415 ns/op
 func BenchmarkCutBigText(b *testing.B) {
@@ -762,38 +796,21 @@ func BenchmarkBuildPrefDict(b *testing.B) {
 	}
 }
 
-// 318,559,415 ns/op
-func BenchmarkCutBigText(b *testing.B) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		b.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		tk.Cut(text, true)
-	}
-}
-
 /*
 go test -bench=. -benchmem
 goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkCutBigText-6                  4         316808279 ns/op        134361028 B/op   2331799 allocs/op
-BenchmarkCut-6                     31472             36895 ns/op           19716 B/op        322 allocs/op
-BenchmarkBuildDag-6               251918              4237 ns/op            2473 B/op         32 allocs/op
-BenchmarkFindDAGPath-6            243849              4607 ns/op            2161 B/op         30 allocs/op
-BenchmarkFindBestPath-6          2248059               528 ns/op             496 B/op          5 allocs/op
-BenchmarkCutDag-6                1000000              1064 ns/op             624 B/op         21 allocs/op
-BenchmarkViterbi-6                 17935             66896 ns/op           52982 B/op        508 allocs/op
-BenchmarkBuildPrefDict-6               7         149018897 ns/op        51680593 B/op    1346011 allocs/op
+BenchmarkCutBigTextParallel-6                 12          92710594 ns/op        165219404 B/op   2331807 allocs/op
+BenchmarkCutBigText-6                          4         327280788 ns/op        134408870 B/op   2331841 allocs/op
+BenchmarkCut-6                             31472             36895 ns/op           19716 B/op        322 allocs/op
+BenchmarkBuildDag-6                       251918              4237 ns/op            2473 B/op         32 allocs/op
+BenchmarkFindDAGPath-6                    243849              4607 ns/op            2161 B/op         30 allocs/op
+BenchmarkFindBestPath-6                  2248059               528 ns/op             496 B/op          5 allocs/op
+BenchmarkCutDag-6                        1000000              1064 ns/op             624 B/op         21 allocs/op
+BenchmarkViterbi-6                         17935             66896 ns/op           52982 B/op        508 allocs/op
+BenchmarkBuildPrefDict-6                       7         149018897 ns/op        51680593 B/op    1346011 allocs/op
 */
 
 func assertDeepEqual(t *testing.T, want, got interface{}) {
