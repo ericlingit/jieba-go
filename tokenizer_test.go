@@ -13,43 +13,18 @@ const dictSize = 60_101_967
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
-func TestProcessNonZh(t *testing.T) {
-	cases := []struct {
-		text string
-		want []string
-	}{
-		{"some english words", []string{"some", "english", "words"}},
-		{"abc123", []string{"abc123"}},
-		{"a1+1=2", []string{"a1", "+", "1", "=", "2"}},
-		{"aaa\nbbb", []string{"aaa", "bbb"}},
+func TestCutBigText(t *testing.T) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+	tk.loadHMM()
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		t.Fatal("failed to open 围城.txt", err)
 	}
-	for _, c := range cases {
-		got := processNonZh(c.text)
-		if !reflect.DeepEqual(c.want, got) {
-			t.Errorf("case %q: want %v, got %v", c.text, c.want, got)
-		}
-	}
-}
-
-func TestTextSplitter(t *testing.T) {
-	cases := []struct {
-		text string
-		want []TextBlock
-	}{
-		{"xxx中文xxx", []TextBlock{{"xxx", false}, {"中文", true}, {"xxx", false}}},
-		{"中文xxx", []TextBlock{{"中文", true}, {"xxx", false}}},
-		{"xxx中文", []TextBlock{{"xxx", false}, {"中文", true}}},
-		{"xxx", []TextBlock{{"xxx", false}}},
-		{"中文", []TextBlock{{"中文", true}}},
-		{"english번역『하다』今天天氣很好，ステーション1+1=2我昨天去上海*important*去", []TextBlock{{"english번역『하다』", false}, {"今天天氣很好", true}, {"，ステーション1+1=2", false}, {"我昨天去上海", true}, {"*important*", false}, {"去", true}}},
-	}
-	for _, c := range cases {
-		t.Run(c.text, func(t *testing.T) {
-			zhIndexes := hanzi.FindAllIndex([]byte(c.text), -1)
-			got := textSplitter(c.text, zhIndexes)
-			assertDeepEqual(t, c.want, got)
-		})
-	}
+	text := string(data)
+	tk.Cut(text, true)
 }
 
 func TestCut(t *testing.T) {
@@ -89,145 +64,82 @@ func TestCut(t *testing.T) {
 	}
 }
 
-func TestCutBigText(t *testing.T) {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-	tk.loadHMM()
-	data, err := os.ReadFile("围城.txt")
-	if err != nil {
-		t.Fatal("failed to open 围城.txt", err)
-	}
-	text := string(data)
-	tk.Cut(text, true)
-}
-
-func TestCutDag(t *testing.T) {
-	tk := Tokenizer{}
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-
-	t.Run("cut dag 1", func(t *testing.T) {
-		text := "今天天氣很好"
-		dPath := [][2]int{
-			{0, 2},
-			{2, 3},
-			{3, 4},
-			{4, 5},
-			{5, 6},
-		}
-		want := []string{"今天", "天", "氣", "很", "好"}
-		got := tk.cutDAG(text, dPath)
-		assertDeepEqual(t, want, got)
-	})
-
-	t.Run("cut dag 2", func(t *testing.T) {
-		text := "我昨天去上海交通大學與老師討論量子力學"
-		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
-		dPath := [][2]int{
-			{0, 1},
-			{1, 3}, // 昨天
-			{3, 4},
-			{4, 6}, // 上海
-			{6, 8}, // 交通
-			{8, 9},
-			{9, 10},
-			{10, 11},
-			{11, 12},
-			{12, 13},
-			{13, 14},
-			{14, 15},
-			{15, 17}, // 量子
-			{17, 18},
-			{18, 19},
-		}
-		got := tk.cutDAG(text, dPath)
-		assertDeepEqual(t, want, got)
-	})
-}
-
-func TestCutHMM(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
-	t.Run("cut hmm 1", func(t *testing.T) {
-		text := "天氣很好"
-		vPath := []string{"B", "E", "S", "S"}
-		want := []string{"天氣", "很", "好"}
-		got := tk.cutHMM(text, vPath)
-		assertDeepEqual(t, want, got)
-
-	})
-
-	t.Run("cut hmm 2", func(t *testing.T) {
-		text := "大學與老師討論"
-		vPath := []string{"B", "E", "S", "B", "E", "B", "E"}
-		want := []string{"大學", "與", "老師", "討論"}
-		got := tk.cutHMM(text, vPath)
-		assertDeepEqual(t, want, got)
-	})
-}
-
-func TestViterbi(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
-
-	t.Run("viterbi case 1", func(t *testing.T) {
-		text := "天氣很好"
-		want := []string{"B", "E", "S", "S"}
-		got := tk.viterbi(text)
-		assertDeepEqual(t, want, got)
-	})
-
-	t.Run("viterbi case 2", func(t *testing.T) {
-		text := "大學與老師討論"
-		want := []string{"B", "E", "S", "B", "E", "B", "E"}
-		got := tk.viterbi(text)
-		assertDeepEqual(t, want, got)
-	})
-}
-
-func TestStateTransitionRoute(t *testing.T) {
-	tk := Tokenizer{}
-	tk.loadHMM()
-
-	hsProb := map[int]map[string]float64{
-		0: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
-		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
-	}
-	step := 2
+func TestSplitText(t *testing.T) {
 	cases := []struct {
-		name     string
-		wantFrom string
-		nowState string
+		text string
+		want []textBlock
 	}{
-		{"transition E->B vs S->B", "E", "B"},
-		{"transition B->M vs M->M", "B", "M"},
-		{"transition B->E vs M->E", "M", "E"},
-		{"transition B->S vs M->S", "S", "S"},
+		{"xxx中文xxx", []textBlock{{"xxx", false}, {"中文", true}, {"xxx", false}}},
+		{"中文xxx", []textBlock{{"中文", true}, {"xxx", false}}},
+		{"xxx中文", []textBlock{{"xxx", false}, {"中文", true}}},
+		{"xxx", []textBlock{{"xxx", false}}},
+		{"中文", []textBlock{{"中文", true}}},
+		{"english번역『하다』今天天氣很好，ステーション1+1=2我昨天去上海*important*去", []textBlock{{"english번역『하다』", false}, {"今天天氣很好", true}, {"，ステーション1+1=2", false}, {"我昨天去上海", true}, {"*important*", false}, {"去", true}}},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			gotRoute := tk.stateTransitionRoute(step, c.nowState, hsProb)
-			assertEqual(t, c.wantFrom, gotRoute.from)
+		t.Run(c.text, func(t *testing.T) {
+			zhIndexes := zh.FindAllIndex([]byte(c.text), -1)
+			got := splitText(c.text, zhIndexes)
+			assertDeepEqual(t, c.want, got)
 		})
 	}
 }
 
-func TestLoadHMM(t *testing.T) {
+func TestBuildDAG(t *testing.T) {
 	tk := Tokenizer{}
-	tk.loadHMM()
-	if tk.emitP["B"]["一"] != -3.6544978750449433 {
-		t.Error("load HMM failed")
+	tk.initOk = true
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
+	cases := []struct {
+		text string
+		want map[int][]int
+	}{
+		{"今天天氣很好", map[int][]int{
+			0: {1, 2}, // text[0:1], text[0:2] == 今, 今天
+			1: {2, 3}, // text[1:2], text[1:3] == 天, 天天
+			2: {3},    // text[2:3] == 天
+			3: {4},    // text[3:4] == 氣
+			4: {5},    // text[4:5] == 很
+			5: {6},    // text[5:6] == 好
+		}},
+		{"我昨天去上海交通大學與老師討論量子力學", map[int][]int{
+			0:  {1},
+			1:  {2, 3}, // 昨 昨天
+			2:  {3},
+			3:  {4},
+			4:  {5, 6}, // 上 上海
+			5:  {6},
+			6:  {7, 8}, // 交 交通
+			7:  {8},
+			8:  {9},
+			9:  {10},
+			10: {11},
+			11: {12},
+			12: {13},
+			13: {14},
+			14: {15},
+			15: {16, 17}, // 量 量子
+			16: {17, 18}, // 子 子力
+			17: {18},
+			18: {19},
+		}},
+		{"这一刹那的撙近", map[int][]int{
+			0: {1},
+			1: {2, 3, 4}, // 一 一刹 一刹那
+			2: {3, 4},    // 刹 刹那
+			3: {4},
+			4: {5},
+			5: {6},
+			6: {7},
+		}},
+		{"撙", map[int][]int{0: {1}}}, // "撙" is in prefix dict; has count == 0.
 	}
-	if tk.emitP["M"]["一"] != -4.428158526435913 {
-		t.Error("load HMM failed")
-	}
-	if tk.emitP["E"]["一"] != -6.044987536255073 {
-		t.Error("load HMM failed")
-	}
-	if tk.emitP["S"]["一"] != -4.92368982120877 {
-		t.Error("load HMM failed")
+	for _, c := range cases {
+		t.Run(c.text, func(t *testing.T) {
+			got := tk.buildDAG(c.text)
+			assertDeepEqual(t, c.want, got)
+		})
 	}
 }
 
@@ -304,16 +216,59 @@ func TestFindDAGPath(t *testing.T) {
 	})
 }
 
+func TestMaxIndexProba(t *testing.T) {
+	tk := Tokenizer{}
+	cases := []struct {
+		candidates []tailProba
+		wantIdx    int
+		wantProba  float64
+	}{
+		{
+			[]tailProba{
+				{0, 0.0},
+				{1, 1.1},
+				{2, 2.2},
+				{3, -3.3},
+			},
+			2,
+			2.2,
+		},
+		{
+			[]tailProba{
+				{5, -3.14e100},
+			},
+			5,
+			-3.14e100,
+		},
+		{
+			[]tailProba{
+				{2, -3.14e100},
+				{3, -3.14e100},
+				{4, -3.14e100},
+			},
+			4,
+			-3.14e100,
+		},
+	}
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			got := tk.maxIndexProba(c.candidates)
+			assertEqual(t, c.wantIdx, got.Index)
+			assertEqual(t, c.wantProba, got.Proba)
+		})
+	}
+}
+
 func TestFindBestPath(t *testing.T) {
 	tk := Tokenizer{}
 	cases := []struct {
 		text     string
-		dagProba map[int][]TailProba
+		dagProba map[int][]tailProba
 		want     [][2]int
 	}{
 		{
 			"今天天氣很好",
-			map[int][]TailProba{
+			map[int][]tailProba{
 				5: {{6, 1.1}},           // 好
 				4: {{5, 1.1}},           // 很
 				3: {{4, 1.1}},           // 氣
@@ -331,7 +286,7 @@ func TestFindBestPath(t *testing.T) {
 		},
 		{
 			"我昨天去上海交通大學與老師討論量子力學",
-			map[int][]TailProba{
+			map[int][]tailProba{
 				18: {{19, 1.1}},
 				17: {{18, 1.1}},
 				16: {{17, 1.1}, {18, 2.2}}, // 子, 子力
@@ -373,7 +328,7 @@ func TestFindBestPath(t *testing.T) {
 		},
 		{
 			"这一刹那的撙近",
-			map[int][]TailProba{
+			map[int][]tailProba{
 				6: {{7, 1.1}},                     // 近
 				5: {{6, 1.1}},                     // 撙
 				4: {{5, 1.1}},                     // 的
@@ -399,105 +354,196 @@ func TestFindBestPath(t *testing.T) {
 	}
 }
 
-func TestMaxIndexProba(t *testing.T) {
+func TestCutDag(t *testing.T) {
 	tk := Tokenizer{}
-	cases := []struct {
-		candidates []TailProba
-		wantIdx    int
-		wantProba  float64
-	}{
-		{
-			[]TailProba{
-				{0, 0.0},
-				{1, 1.1},
-				{2, 2.2},
-				{3, -3.3},
-			},
-			2,
-			2.2,
-		},
-		{
-			[]TailProba{
-				{5, -3.14e100},
-			},
-			5,
-			-3.14e100,
-		},
-		{
-			[]TailProba{
-				{2, -3.14e100},
-				{3, -3.14e100},
-				{4, -3.14e100},
-			},
-			4,
-			-3.14e100,
-		},
+	tk.dictSize = dictSize
+	tk.prefixDict = prefixDictionary
+
+	t.Run("cut dag 1", func(t *testing.T) {
+		text := "今天天氣很好"
+		dPath := [][2]int{
+			{0, 2},
+			{2, 3},
+			{3, 4},
+			{4, 5},
+			{5, 6},
+		}
+		want := []string{"今天", "天", "氣", "很", "好"}
+		got := tk.cutDAG(text, dPath)
+		assertDeepEqual(t, want, got)
+	})
+
+	t.Run("cut dag 2", func(t *testing.T) {
+		text := "我昨天去上海交通大學與老師討論量子力學"
+		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
+		dPath := [][2]int{
+			{0, 1},
+			{1, 3}, // 昨天
+			{3, 4},
+			{4, 6}, // 上海
+			{6, 8}, // 交通
+			{8, 9},
+			{9, 10},
+			{10, 11},
+			{11, 12},
+			{12, 13},
+			{13, 14},
+			{14, 15},
+			{15, 17}, // 量子
+			{17, 18},
+			{18, 19},
+		}
+		got := tk.cutDAG(text, dPath)
+		assertDeepEqual(t, want, got)
+	})
+}
+
+func TestLoadHMM(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+	if tk.emitP["B"]["一"] != -3.6544978750449433 {
+		t.Error("load HMM failed")
 	}
-	for i, c := range cases {
-		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			got := tk.maxIndexProba(c.candidates)
-			assertEqual(t, c.wantIdx, got.Index)
-			assertEqual(t, c.wantProba, got.Proba)
+	if tk.emitP["M"]["一"] != -4.428158526435913 {
+		t.Error("load HMM failed")
+	}
+	if tk.emitP["E"]["一"] != -6.044987536255073 {
+		t.Error("load HMM failed")
+	}
+	if tk.emitP["S"]["一"] != -4.92368982120877 {
+		t.Error("load HMM failed")
+	}
+}
+
+func TestViterbi(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+
+	t.Run("viterbi case 1", func(t *testing.T) {
+		text := "天氣很好"
+		want := []string{"B", "E", "S", "S"}
+		got := tk.viterbi(text)
+		assertDeepEqual(t, want, got)
+	})
+
+	t.Run("viterbi case 2", func(t *testing.T) {
+		text := "大學與老師討論"
+		want := []string{"B", "E", "S", "B", "E", "B", "E"}
+		got := tk.viterbi(text)
+		assertDeepEqual(t, want, got)
+	})
+}
+
+func TestStateTransitionRoute(t *testing.T) {
+	tk := Tokenizer{}
+	tk.loadHMM()
+
+	hsProb := map[int]map[string]float64{
+		0: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
+		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
+	}
+	step := 2
+	cases := []struct {
+		name     string
+		wantFrom string
+		nowState string
+	}{
+		{"transition E->B vs S->B", "E", "B"},
+		{"transition B->M vs M->M", "B", "M"},
+		{"transition B->E vs M->E", "M", "E"},
+		{"transition B->S vs M->S", "S", "S"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotRoute := tk.stateTransitionRoute(step, c.nowState, hsProb)
+			assertEqual(t, c.wantFrom, gotRoute.from)
 		})
 	}
 }
 
-func TestBuildDAG(t *testing.T) {
+func TestCutHMM(t *testing.T) {
 	tk := Tokenizer{}
-	tk.initOk = true
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk.loadHMM()
+	t.Run("cut hmm 1", func(t *testing.T) {
+		text := "天氣很好"
+		vPath := []string{"B", "E", "S", "S"}
+		want := []string{"天氣", "很", "好"}
+		got := tk.cutHMM(text, vPath)
+		assertDeepEqual(t, want, got)
 
+	})
+
+	t.Run("cut hmm 2", func(t *testing.T) {
+		text := "大學與老師討論"
+		vPath := []string{"B", "E", "S", "B", "E", "B", "E"}
+		want := []string{"大學", "與", "老師", "討論"}
+		got := tk.cutHMM(text, vPath)
+		assertDeepEqual(t, want, got)
+	})
+}
+
+func TestCutNonZh(t *testing.T) {
+	tk := Tokenizer{}
 	cases := []struct {
 		text string
-		want map[int][]int
+		want []string
 	}{
-		{"今天天氣很好", map[int][]int{
-			0: {1, 2}, // text[0:1], text[0:2] == 今, 今天
-			1: {2, 3}, // text[1:2], text[1:3] == 天, 天天
-			2: {3},    // text[2:3] == 天
-			3: {4},    // text[3:4] == 氣
-			4: {5},    // text[4:5] == 很
-			5: {6},    // text[5:6] == 好
-		}},
-		{"我昨天去上海交通大學與老師討論量子力學", map[int][]int{
-			0:  {1},
-			1:  {2, 3}, // 昨 昨天
-			2:  {3},
-			3:  {4},
-			4:  {5, 6}, // 上 上海
-			5:  {6},
-			6:  {7, 8}, // 交 交通
-			7:  {8},
-			8:  {9},
-			9:  {10},
-			10: {11},
-			11: {12},
-			12: {13},
-			13: {14},
-			14: {15},
-			15: {16, 17}, // 量 量子
-			16: {17, 18}, // 子 子力
-			17: {18},
-			18: {19},
-		}},
-		{"这一刹那的撙近", map[int][]int{
-			0: {1},
-			1: {2, 3, 4}, // 一 一刹 一刹那
-			2: {3, 4},    // 刹 刹那
-			3: {4},
-			4: {5},
-			5: {6},
-			6: {7},
-		}},
-		{"撙", map[int][]int{0: {1}}}, // "撙" is in prefix dict; has count == 0.
+		{"some english words", []string{"some", "english", "words"}},
+		{"abc123", []string{"abc123"}},
+		{"a1+1=2", []string{"a1", "+", "1", "=", "2"}},
+		{"aaa\nbbb", []string{"aaa", "bbb"}},
 	}
 	for _, c := range cases {
-		t.Run(c.text, func(t *testing.T) {
-			got := tk.buildDAG(c.text)
-			assertDeepEqual(t, c.want, got)
-		})
+		got := tk.cutNonZh(c.text)
+		if !reflect.DeepEqual(c.want, got) {
+			t.Errorf("case %q: want %v, got %v", c.text, c.want, got)
+		}
 	}
+}
+
+func TestInitialize(t *testing.T) {
+	t.Run("with custom dictionary", func(t *testing.T) {
+		f, _ := os.CreateTemp("", "aaa.txt")
+		defer os.Remove(f.Name())
+		f.Write([]byte("今天 10 x\n天氣 3\n"))
+
+		tk := Tokenizer{}
+		tk.CustomDict = f.Name()
+		tk.initialize()
+		if tk.initOk != true {
+			t.Errorf("initialize failed")
+		}
+		want := map[string]int{
+			"今":  0,
+			"今天": 10,
+			"天":  0,
+			"天氣": 3,
+		}
+		assertDeepEqual(t, want, tk.prefixDict)
+		wantSize := 13
+		assertEqual(t, wantSize, tk.dictSize)
+	})
+
+	t.Run("without custom dictionary", func(t *testing.T) {
+		tk := Tokenizer{}
+		tk.initialize()
+		if tk.initOk != true {
+			t.Errorf("initialize failed")
+		}
+
+		// Sample the first 100 items.
+		i := 100
+		for k, wantCount := range prefixDictionary {
+			gotCount := tk.prefixDict[k]
+			if wantCount != gotCount {
+				t.Errorf("bad prefix dictionary. %q wants %d, got %d", k, wantCount, gotCount)
+			}
+			if i <= 0 {
+				break
+			}
+			i--
+		}
+	})
 }
 
 func TestBuildPrefixDict(t *testing.T) {
@@ -548,119 +594,37 @@ func TestBuildPrefixDictFromScratch(t *testing.T) {
 	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
 }
 
-func TestInitialize(t *testing.T) {
-	t.Run("with custom dictionary", func(t *testing.T) {
-		f, _ := os.CreateTemp("", "aaa.txt")
-		defer os.Remove(f.Name())
-		f.Write([]byte("今天 10 x\n天氣 3\n"))
+// Benchmarks.
 
-		tk := Tokenizer{}
-		tk.CustomDict = f.Name()
-		tk.initialize()
-		if tk.initOk != true {
-			t.Errorf("initialize failed")
-		}
-		want := map[string]int{
-			"今":  0,
-			"今天": 10,
-			"天":  0,
-			"天氣": 3,
-		}
-		assertDeepEqual(t, want, tk.prefixDict)
-		wantSize := 13
-		assertEqual(t, wantSize, tk.dictSize)
-	})
-
-	t.Run("without custom dictionary", func(t *testing.T) {
-		tk := Tokenizer{}
-		tk.initialize()
-		if tk.initOk != true {
-			t.Errorf("initialize failed")
-		}
-
-		// Sample the first 100 items.
-		i := 100
-		for k, wantCount := range prefixDictionary {
-			gotCount := tk.prefixDict[k]
-			if wantCount != gotCount {
-				t.Errorf("bad prefix dictionary. %q wants %d, got %d", k, wantCount, gotCount)
-			}
-			if i <= 0 {
-				break
-			}
-			i--
-		}
-	})
-}
-
-func assertDeepEqual(t *testing.T, want, got interface{}) {
-	t.Helper()
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
-}
-
-func assertEqual(t *testing.T, want, got interface{}) {
-	t.Helper()
-	if want != got {
-		t.Errorf("want %v, got %v", want, got)
-	}
-}
-
-// Use a for-loop to perform reflect.DeepEqual. This is
-// much faster than calling DeepEqual.
-func assertDeepEqualLoop(t *testing.T, want, got map[string]int) {
-	t.Helper()
-
-	for k, v := range want {
-		if v != got[k] {
-			t.Errorf("%q want %v, got %v", k, v, got[k])
-		}
-	}
-}
-
-// Load a prefix dictionary created from jieba's dict.txt.
-func loadPrefixDictionaryFromGob() map[string]int {
-	// Read gob file.
-	gobFile, err := os.Open("prefix_dictionary.gob")
-	if err != nil {
-		panic(fmt.Sprintf("failed to open gob file: %v", err))
-	}
-	// Decode to pfDict map.
-	pfDict := map[string]int{}
-	decoder := gob.NewDecoder(gobFile)
-	if err := decoder.Decode(&pfDict); err != nil {
-		panic(fmt.Sprintf("failed to decode pfDict: %v", err))
-	}
-
-	return pfDict
-}
-
-func loadDictionaryFile(f string) []string {
-	reader, err := os.Open(f)
-	if err != nil {
-		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
-	}
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanLines)
-	lines := []string{}
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	reader.Close()
-	return lines
-}
-
-// 140,353,760 ns/op
-func BenchmarkBuildPrefDict(b *testing.B) {
+// 318,559,415 ns/op
+func BenchmarkCutBigText(b *testing.B) {
 	tk := Tokenizer{}
-	tk.CustomDict = "dict.txt"
-	lines := loadDictionaryFile(tk.CustomDict)
-
-	// Run benchmark.
+	tk.initOk = true
+	tk.loadHMM()
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+	data, err := os.ReadFile("围城.txt")
+	if err != nil {
+		b.Fatal("failed to open 围城.txt", err)
+	}
+	text := string(data)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.buildPrefixDictionary(lines)
+		tk.Cut(text, true)
+	}
+}
+
+// 42,705 ns/op
+func BenchmarkCut(b *testing.B) {
+	tk := Tokenizer{}
+	tk.initOk = true
+	tk.loadHMM()
+	tk.prefixDict = prefixDictionary
+	tk.dictSize = dictSize
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tk.Cut("我昨天去上海交通大學與老師討論量子力學", true)
 	}
 }
 
@@ -714,7 +678,7 @@ func BenchmarkFindDAGPath(b *testing.B) {
 // 1,140 ns/op
 func BenchmarkFindBestPath(b *testing.B) {
 	tk := Tokenizer{}
-	dagProba := map[int][]TailProba{
+	dagProba := map[int][]tailProba{
 		18: {{19, 1.1}},
 		17: {{18, 1.1}},
 		16: {{17, 1.1}, {18, 2.2}}, // 子, 子力
@@ -785,17 +749,16 @@ func BenchmarkViterbi(b *testing.B) {
 	}
 }
 
-// 42,705 ns/op
-func BenchmarkCut(b *testing.B) {
+// 140,353,760 ns/op
+func BenchmarkBuildPrefDict(b *testing.B) {
 	tk := Tokenizer{}
-	tk.initOk = true
-	tk.loadHMM()
-	tk.prefixDict = prefixDictionary
-	tk.dictSize = dictSize
+	tk.CustomDict = "dict.txt"
+	lines := loadDictionaryFile(tk.CustomDict)
 
+	// Run benchmark.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.Cut("我昨天去上海交通大學與老師討論量子力學", true)
+		tk.buildPrefixDictionary(lines)
 	}
 }
 
@@ -823,15 +786,73 @@ goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
+BenchmarkCutBigText-6                  4         318559415 ns/op        134310316 B/op   2331746 allocs/op
+BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
 BenchmarkBuildDag-6               282723              4289 ns/op            2473 B/op         32 allocs/op
 BenchmarkFindDAGPath-6            118532              9598 ns/op            5744 B/op         85 allocs/op
 BenchmarkFindBestPath-6           998020              1140 ns/op             496 B/op          5 allocs/op
 BenchmarkCutDag-6                1000000              1039 ns/op             624 B/op         21 allocs/op
 BenchmarkViterbi-6                 17833             64731 ns/op           52982 B/op        508 allocs/op
-BenchmarkCut-6                     27764             42705 ns/op           23276 B/op        376 allocs/op
-BenchmarkCutBigText-6                  4         318559415 ns/op        134310316 B/op   2331746 allocs/op
+BenchmarkBuildPrefDict-6               8         140051667 ns/op        51680594 B/op    1346011 allocs/op
 */
+
+func assertDeepEqual(t *testing.T, want, got interface{}) {
+	t.Helper()
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
+
+func assertEqual(t *testing.T, want, got interface{}) {
+	t.Helper()
+	if want != got {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
+
+// Use a for-loop to perform reflect.DeepEqual. This is
+// much faster than calling DeepEqual.
+func assertDeepEqualLoop(t *testing.T, want, got map[string]int) {
+	t.Helper()
+
+	for k, v := range want {
+		if v != got[k] {
+			t.Errorf("%q want %v, got %v", k, v, got[k])
+		}
+	}
+}
+
+// Load a prefix dictionary created from jieba's dict.txt.
+func loadPrefixDictionaryFromGob() map[string]int {
+	// Read gob file.
+	gobFile, err := os.Open("prefix_dictionary.gob")
+	if err != nil {
+		panic(fmt.Sprintf("failed to open gob file: %v", err))
+	}
+	// Decode to pfDict map.
+	pfDict := map[string]int{}
+	decoder := gob.NewDecoder(gobFile)
+	if err := decoder.Decode(&pfDict); err != nil {
+		panic(fmt.Sprintf("failed to decode pfDict: %v", err))
+	}
+
+	return pfDict
+}
+
+func loadDictionaryFile(f string) []string {
+	reader, err := os.Open(f)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
+	}
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanLines)
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	reader.Close()
+	return lines
+}
 
 // func savePrefixDictionaryToGob() {
 // 	// Read dict.txt.
