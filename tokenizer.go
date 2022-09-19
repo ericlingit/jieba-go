@@ -475,13 +475,16 @@ func (tk *Tokenizer) Cut(text string, hmm bool) []string {
 
 	result := []string{}
 	for _, block := range blocks {
-		if block.doProcess {
-			result = append(result, tk.cutText(block.text, hmm)...)
-		} else {
-			result = append(result, processNonZh(block.text)...)
-		}
+		result = append(result, tk.cutBlock(block, hmm)...)
 	}
 	return result
+}
+
+func (tk *Tokenizer) cutBlock(block TextBlock, hmm bool) []string {
+	if block.doProcess {
+		return tk.cutText(block.text, hmm)
+	}
+	return cutNonZh(block.text)
 }
 
 var hanzi = regexp.MustCompile(`\p{Han}+`)
