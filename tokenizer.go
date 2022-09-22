@@ -21,6 +21,13 @@ const minFloat float64 = -3.14e100
 var zh = regexp.MustCompile(`\p{Han}+`)
 var alnum = regexp.MustCompile(`([a-zA-Z0-9]+)`)
 
+var stateChange = map[string][]string{
+	"B": {"E", "S"}, // E->B, S->B
+	"M": {"B", "M"},
+	"E": {"B", "M"},
+	"S": {"E", "S"},
+}
+
 type Tokenizer struct {
 	CustomDict string
 	initOk     bool
@@ -483,13 +490,6 @@ func (tk *Tokenizer) viterbi(text string) []string {
 // a S. This function finds the most likely route (E->B vs S->B)
 // along with the route's log probability.
 func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenStates map[int]map[string]float64) transitionRoute {
-	stateChange := map[string][]string{
-		"B": {"E", "S"}, // E->B, S->B
-		"M": {"B", "M"},
-		"E": {"B", "M"},
-		"S": {"E", "S"},
-	}
-
 	// List all possible routes and calculate their log probabilities.
 	routes := map[string]float64{}
 	for _, prevState := range stateChange[nowState] {
