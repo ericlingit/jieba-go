@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,8 +36,14 @@ type Tokenizer struct {
 }
 
 type textBlock struct {
+	id        int
 	text      string
 	doProcess bool
+}
+
+type resultBlock struct {
+	id     int
+	tokens []string
 }
 
 type tailProba struct {
@@ -50,7 +57,10 @@ type transitionRoute struct {
 }
 
 // Perform Cut in worker goroutines in parallel.
-func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int) []string {
+// If ordered is true, the returned slice will be sorted
+// according to the order of the input text. Sorting will
+// adversely impact performance by approximately 30%.
+func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int, ordered bool) []string {
 	// Split text into zh and non-zh blocks.
 	blocks := make(chan textBlock, len(text))
 	zhIndexes := zh.FindAllIndex([]byte(text), -1)
@@ -62,14 +72,14 @@ func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int) []string
 	}()
 	// Launch worker goroutines that fetch work from `blocks`.
 	// Completed work are sent to `result`.
-	result := make(chan []string, len(text))
+	result := make(chan resultBlock, len(text))
 	stop := make(chan struct{})
 	defer close(stop)
 	wg := sync.WaitGroup{}
 	wg.Add(numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		go func() {
-			tk.worker(blocks, stop, result)
+			tk.worker(blocks, stop, result, hmm)
 			wg.Done()
 		}()
 	}
@@ -77,23 +87,42 @@ func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int) []string
 		defer close(result)
 		wg.Wait()
 	}()
-	// Collect tokens from `result`.
-	tokens := []string{}
-	for r := range result {
-		tokens = append(tokens, r...)
+	if ordered {
+		// Collect `resultBlock` from `result`.
+		rblocks := []resultBlock{}
+		for rb := range result {
+			rblocks = append(rblocks, rb)
+		}
+		// Sort rblocks.
+		sort.Slice(rblocks, func(i, j int) bool {
+			return rblocks[i].id < rblocks[j].id
+		})
+		// Extract strings.
+		tokens := []string{}
+		for _, rb := range rblocks {
+			tokens = append(tokens, rb.tokens...)
+		}
+		return tokens
+	} else {
+		// Collect `resultBlock` from `result` and extract
+		// string tokens.
+		tokens := []string{}
+		for rb := range result {
+			tokens = append(tokens, rb.tokens...)
+		}
+		return tokens
 	}
-	return tokens
 }
 
 // Worker for CutParallel() method.
 // A worker fetches work from `blocks` channel, processes the
 // block, and sends the result to the `result` channel.
-func (tk *Tokenizer) worker(blocks chan textBlock, stop chan struct{}, result chan []string) {
+func (tk *Tokenizer) worker(blocks chan textBlock, stop chan struct{}, result chan resultBlock, hmm bool) {
 	for b := range blocks {
 		select {
 		case <-stop:
 			return
-		case result <- tk.cutBlock(b, true):
+		case result <- resultBlock{b.id, tk.cutBlock(b, hmm)}:
 		}
 	}
 }
@@ -119,7 +148,7 @@ func (tk *Tokenizer) Cut(text string, useHmm bool) []string {
 // Identify the text index ranges to process.
 func splitText(text string, markedIndexes [][]int) []textBlock {
 	if len(markedIndexes) == 0 {
-		return []textBlock{{text, false}}
+		return []textBlock{{0, text, false}}
 	}
 
 	// Find all in-between indexes.
@@ -138,6 +167,7 @@ func splitText(text string, markedIndexes [][]int) []textBlock {
 	//         {8, 10}, // Marked index pairs (doProcess=true)
 	//         {10, 15},
 	//     }
+	count := 0
 	blocks := []textBlock{}
 	prevTail := 0
 	for i, pair := range markedIndexes {
@@ -145,17 +175,19 @@ func splitText(text string, markedIndexes [][]int) []textBlock {
 		if pair[0] != prevTail {
 			// Fill in the gap.
 			filler := text[prevTail:pair[0]]
-			blocks = append(blocks, textBlock{filler, false})
+			blocks = append(blocks, textBlock{count, filler, false})
+			count++
 		}
 		markedText := text[pair[0]:pair[1]]
-		blocks = append(blocks, textBlock{markedText, true})
+		blocks = append(blocks, textBlock{count, markedText, true})
 		prevTail = pair[1]
+		count++
 
 		// Last pair with a right-side gap.
 		if i == len(markedIndexes)-1 && pair[1] != len(text) {
 			// Fill in the gap.
 			filler := text[pair[1]:]
-			blocks = append(blocks, textBlock{filler, false})
+			blocks = append(blocks, textBlock{count, filler, false})
 		}
 	}
 	return blocks

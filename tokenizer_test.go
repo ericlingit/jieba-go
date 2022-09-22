@@ -17,7 +17,7 @@ var prefixDictionary = loadPrefixDictionaryFromGob()
 func TestCutBigTextParallel(t *testing.T) {
 	tk := newTokenizer(true)
 	text := loadBigText()
-	tk.CutParallel(text, true, 6)
+	tk.CutParallel(text, true, 6, false)
 }
 
 func TestCutBigText(t *testing.T) {
@@ -64,12 +64,12 @@ func TestSplitText(t *testing.T) {
 		text string
 		want []textBlock
 	}{
-		{"xxx中文xxx", []textBlock{{"xxx", false}, {"中文", true}, {"xxx", false}}},
-		{"中文xxx", []textBlock{{"中文", true}, {"xxx", false}}},
-		{"xxx中文", []textBlock{{"xxx", false}, {"中文", true}}},
-		{"xxx", []textBlock{{"xxx", false}}},
-		{"中文", []textBlock{{"中文", true}}},
-		{"english번역『하다』今天天氣很好，ステーション1+1=2我昨天去上海*important*去", []textBlock{{"english번역『하다』", false}, {"今天天氣很好", true}, {"，ステーション1+1=2", false}, {"我昨天去上海", true}, {"*important*", false}, {"去", true}}},
+		{"xxx中文xxx", []textBlock{{0, "xxx", false}, {1, "中文", true}, {2, "xxx", false}}},
+		{"中文xxx", []textBlock{{0, "中文", true}, {1, "xxx", false}}},
+		{"xxx中文", []textBlock{{0, "xxx", false}, {1, "中文", true}}},
+		{"xxx", []textBlock{{0, "xxx", false}}},
+		{"中文", []textBlock{{0, "中文", true}}},
+		{"english번역『하다』今天天氣很好，ステーション1+1=2我昨天去上海*important*去", []textBlock{{0, "english번역『하다』", false}, {1, "今天天氣很好", true}, {2, "，ステーション1+1=2", false}, {3, "我昨天去上海", true}, {4, "*important*", false}, {5, "去", true}}},
 	}
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
@@ -583,7 +583,7 @@ func BenchmarkCutBigTextParallel(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.CutParallel(text, true, 6)
+		tk.CutParallel(text, true, 6, false)
 	}
 }
 
