@@ -596,6 +596,23 @@ func TestAddWord(t *testing.T) {
 	}
 }
 
+func TestSuggestFreq(t *testing.T) {
+	tk := newTokenizer(false)
+	cases := []struct {
+		word string
+		freq int
+	}{
+		{"左和右", 1},
+		{"上和下", 5},
+	}
+	for _, c := range cases {
+		got := tk.suggestFreq(c.word)
+		if c.freq != got {
+			t.Errorf("want %d for %q, got %d", c.freq, c.word, got)
+		}
+	}
+}
+
 //
 // Benchmarks.
 //

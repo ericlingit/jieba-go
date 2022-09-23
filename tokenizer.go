@@ -660,10 +660,43 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 
 // Add a word to the prefix dictionary.
 // If word already exists, the word's frequency value will
-// be updated.
+// be updated. If freq is less than 1, a frequency will be
+// automatically calculated.
 func (tk *Tokenizer) AddWord(word string, freq int) {
 	tk.dictLock.Lock()
 	defer tk.dictLock.Unlock()
+	if freq < 1 {
+		freq = tk.suggestFreq(word)
+	}
 	tk.prefixDict[word] = freq
 	tk.dictSize += freq
+}
+
+// Calculate a frequency value based on current prefix
+// dictionary and its total size.
+func (tk *Tokenizer) suggestFreq(word string) int {
+	dSize := float64(tk.dictSize)
+	if dSize < 1.0 {
+		dSize = 1.0
+	}
+	freq := 1.0
+	pieces := tk.Cut(word, false)
+	for _, p := range pieces {
+		pFreq, found := tk.prefixDict[p]
+		if !found {
+			pFreq = 1
+		}
+		freq *= float64(pFreq) / dSize
+	}
+
+	a := int(freq*dSize) + 1
+	b := 1
+	val, found := tk.prefixDict[word]
+	if found {
+		b = val
+	}
+	if a > b {
+		return a
+	}
+	return b
 }
