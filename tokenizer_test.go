@@ -561,6 +561,17 @@ func TestBuildPrefixDict(t *testing.T) {
 	assertDeepEqual(t, want, tk.prefixDict)
 }
 
+func TestBuildPrefixDictFromScratch(t *testing.T) {
+	tk := Tokenizer{}
+	tk.CustomDict = "dict.txt"
+	lines := loadDictionaryFile(tk.CustomDict)
+
+	tk.buildPrefixDictionary(lines)
+	// Compare ALL items in `prefixDictionary` to
+	// `tk.prefixDict`.
+	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
+}
+
 func TestAddWord(t *testing.T) {
 	tk := Tokenizer{}
 	tk.prefixDict = map[string]int{}
@@ -583,17 +594,6 @@ func TestAddWord(t *testing.T) {
 	if tk.dictSize != 100 {
 		t.Errorf("want 100 for dictSize, got %d", tk.dictSize)
 	}
-}
-
-func TestBuildPrefixDictFromScratch(t *testing.T) {
-	tk := Tokenizer{}
-	tk.CustomDict = "dict.txt"
-	lines := loadDictionaryFile(tk.CustomDict)
-
-	tk.buildPrefixDictionary(lines)
-	// Compare ALL items in `prefixDictionary` to
-	// `tk.prefixDict`.
-	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
 }
 
 //
