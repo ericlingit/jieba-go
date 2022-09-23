@@ -561,6 +561,30 @@ func TestBuildPrefixDict(t *testing.T) {
 	assertDeepEqual(t, want, tk.prefixDict)
 }
 
+func TestAddWord(t *testing.T) {
+	tk := Tokenizer{}
+	tk.prefixDict = map[string]int{}
+	newWords := map[string]int{
+		"左和右": 20,
+		"上和下": 80,
+	}
+	for word, freq := range newWords {
+		tk.AddWord(word, freq)
+	}
+	for word, freq := range newWords {
+		val, found := tk.prefixDict[word]
+		if !found {
+			t.Errorf("want %q in prefixDict, not found", word)
+		}
+		if val != freq {
+			t.Errorf("want %d for %q, got %d", freq, word, val)
+		}
+	}
+	if tk.dictSize != 100 {
+		t.Errorf("want 100 for dictSize, got %d", tk.dictSize)
+	}
+}
+
 func TestBuildPrefixDictFromScratch(t *testing.T) {
 	tk := Tokenizer{}
 	tk.CustomDict = "dict.txt"
@@ -755,6 +779,9 @@ func newTokenizer(hmm bool) Tokenizer {
 	if hmm {
 		tk.loadHMM()
 	}
+	// The return statement copies a sync.RWMutex lock.
+	// This is intentional. Each Tokenizer instance in
+	// every test should be independent of each other.
 	return tk
 }
 

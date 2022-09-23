@@ -34,6 +34,7 @@ type Tokenizer struct {
 	hmmOk      bool
 	prefixDict map[string]int
 	dictSize   int
+	dictLock   sync.RWMutex
 	startP     map[string]float64
 	transP     map[string]map[string]float64
 	emitP      map[string]map[string]float64
@@ -68,6 +69,8 @@ type transitionRoute struct {
 // according to the order of the input text. Sorting will
 // adversely impact performance by approximately 30%.
 func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int, ordered bool) []string {
+	tk.dictLock.RLock()
+	defer tk.dictLock.RUnlock()
 	// Split text into zh and non-zh blocks.
 	blocks := make(chan textBlock, len(text))
 	zhIndexes := zh.FindAllIndex([]byte(text), -1)
@@ -142,6 +145,8 @@ func (tk *Tokenizer) Cut(text string, useHmm bool) []string {
 	if useHmm && !tk.hmmOk {
 		tk.loadHMM()
 	}
+	tk.dictLock.RLock()
+	defer tk.dictLock.RUnlock()
 	zhIndexes := zh.FindAllIndex([]byte(text), -1)
 	blocks := splitText(text, zhIndexes)
 
@@ -555,6 +560,8 @@ func (tk *Tokenizer) cutNonZh(text string) []string {
 // dictionary will be built from this file. If CustomDict is not
 // specified, a pre-built prefix dictionary will be loaded.
 func (tk *Tokenizer) initialize() {
+	tk.dictLock.Lock()
+	defer tk.dictLock.Unlock()
 	// Build a prefix dictionary from user-proviced dictionary
 	// file.
 	if len(tk.CustomDict) != 0 {
@@ -624,6 +631,8 @@ For example:
 }
 */
 func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
+	tk.dictLock.Lock()
+	defer tk.dictLock.Unlock()
 	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
 	total := 0
 	for _, line := range dictionaryLines {
@@ -648,4 +657,14 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 	}
 	tk.dictSize = total
 	return nil
+}
+
+// Add a word to the prefix dictionary.
+// If word already exists, the word's frequency value will
+// be updated.
+func (tk *Tokenizer) AddWord(word string, freq int) {
+	tk.dictLock.Lock()
+	defer tk.dictLock.Unlock()
+	tk.prefixDict[word] = freq
+	tk.dictSize += freq
 }
