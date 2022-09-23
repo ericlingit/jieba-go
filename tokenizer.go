@@ -631,8 +631,6 @@ For example:
 }
 */
 func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
-	tk.dictLock.Lock()
-	defer tk.dictLock.Unlock()
 	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
 	total := 0
 	for _, line := range dictionaryLines {
@@ -643,7 +641,9 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 			return err
 		}
 		total += count
+		tk.prefixDict[word] = count
 
+		// Add word pieces.
 		wordR := []rune(word)
 		piece := ""
 		for _, char := range wordR[:len(wordR)-1] {
@@ -653,7 +653,6 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 				tk.prefixDict[piece] = 0
 			}
 		}
-		tk.prefixDict[word] = count
 	}
 	tk.dictSize = total
 	return nil
