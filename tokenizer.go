@@ -663,11 +663,11 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 // be updated. If freq is less than 1, a frequency will be
 // automatically calculated.
 func (tk *Tokenizer) AddWord(word string, freq int) {
-	tk.dictLock.Lock()
-	defer tk.dictLock.Unlock()
 	if freq < 1 {
 		freq = tk.suggestFreq(word)
 	}
+	tk.dictLock.Lock()
+	defer tk.dictLock.Unlock()
 	tk.prefixDict[word] = freq
 	tk.dictSize += freq
 }
