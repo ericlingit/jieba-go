@@ -31,13 +31,10 @@ var stateChange = map[string][]string{
 type Tokenizer struct {
 	CustomDict string
 	initOk     bool
-	hmmOk      bool
+	hmm        hiddenMarkovModel
 	prefixDict map[string]int
 	dictSize   int
 	dictLock   sync.RWMutex
-	startP     map[string]float64
-	transP     map[string]map[string]float64
-	emitP      map[string]map[string]float64
 	// Values below are for debugging.
 	dag      map[int][]int
 	dagProba map[int][]tailProba
@@ -142,8 +139,8 @@ func (tk *Tokenizer) Cut(text string, useHmm bool) []string {
 	if !tk.initOk {
 		tk.initialize()
 	}
-	if useHmm && !tk.hmmOk {
-		tk.loadHMM()
+	if useHmm && !tk.hmm.ready {
+		tk.hmm = newJiebaHMM()
 	}
 	tk.dictLock.RLock()
 	defer tk.dictLock.RUnlock()
@@ -233,7 +230,7 @@ func (tk *Tokenizer) cutZh(text string, hmm bool) []string {
 			// Run cutHMM at the end of iteration only if there
 			// are uncut runes.
 			if i+1 >= len(dagPieces) && len(uncutRunes) != 0 {
-				v := tk.viterbi(string(uncutRunes))
+				v := tk.hmm.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
 				words = append(words, newWords...)
 				uncutRunes = nil
@@ -241,7 +238,7 @@ func (tk *Tokenizer) cutZh(text string, hmm bool) []string {
 		} else {
 			// Run cutHMM when a length > 1 rune is encountered.
 			if len(uncutRunes) != 0 {
-				v := tk.viterbi(string(uncutRunes))
+				v := tk.hmm.viterbi(string(uncutRunes))
 				newWords := tk.cutHMM(string(uncutRunes), v)
 				words = append(words, newWords...)
 				uncutRunes = nil
@@ -383,137 +380,6 @@ func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
 		pieces = append(pieces, p)
 	}
 	return pieces
-}
-
-// Load jieba's trained Hidden Markov model.
-func (tk *Tokenizer) loadHMM() {
-	tk.startP = map[string]float64{
-		"B": -0.26268660809250016,
-		"E": minFloat,
-		"M": minFloat,
-		"S": -1.4652633398537678,
-	}
-	tk.transP = map[string]map[string]float64{
-		"B": {
-			"E": -0.51082562376599,  // B->E
-			"M": -0.916290731874155, // B->M
-		},
-		"E": {
-			"B": -0.5897149736854513, // E->B
-			"S": -0.8085250474669937, // E->S
-		},
-		"M": {
-			"E": -0.33344856811948514, // M->E
-			"M": -1.2603623820268226,  // M->M
-		},
-		"S": {
-			"B": -0.7211965654669841, // S->B
-			"S": -0.6658631448798212, // S->S
-		},
-	}
-
-	jsonData, err := os.ReadFile("prob_emit.json")
-	if err != nil {
-		panic(fmt.Sprintf("failed to read prob_emit.json: %v", err))
-	}
-	// tk.emitP := map[string]map[string]float64{} // "B": {"word": -1.1, ...}, ...
-	err = json.Unmarshal(jsonData, &tk.emitP)
-	if err != nil {
-		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
-	}
-	tk.hmmOk = true
-}
-
-// Use the Viterbi algorithm to find the hidden states of all
-// characters in `text`, and the path of highest probability.
-func (tk *Tokenizer) viterbi(text string) []string {
-	textRune := []rune(text)
-
-	// Always return "S" for a single-piece input.
-	if len(textRune) == 1 {
-		return []string{"S"}
-	}
-
-	hiddenStateProba := map[int]map[string]float64{
-		0: {},
-	}
-	fullPath := map[string][]string{
-		"B": {"B"},
-		"M": {"M"},
-		"E": {"E"},
-		"S": {"S"},
-	}
-	HMMstates := []string{"B", "M", "E", "S"}
-
-	// Initial probabilities for each hidden state at rune[0]
-	for _, s := range HMMstates {
-		emit, found := tk.emitP[s][string(textRune[0])]
-		if !found {
-			emit = minFloat
-		}
-		startProba := tk.startP[s] + emit
-		hiddenStateProba[0][s] = startProba
-	}
-
-	// Calculate probabilities for each hidden state from rune[1]
-	// to rune[-1], and find the best route in between all state
-	// transitions.
-	for i_, char := range textRune[1:] {
-		i := i_ + 1
-		hiddenStateProba[i] = map[string]float64{}
-		partialPath := map[string][]string{}
-		// Find the most likely route preceding each state,
-		// and the route's log probability.
-		for _, s := range HMMstates {
-			route := tk.stateTransitionRoute(i, s, hiddenStateProba)
-			emitProba, found := tk.emitP[s][string(char)]
-			if !found {
-				emitProba = minFloat
-			}
-			stateProba := route.proba + emitProba
-			hiddenStateProba[i][s] = stateProba
-			// Append route to fullPath.
-			partialPath[s] = append(partialPath[s], fullPath[route.from]...)
-			partialPath[s] = append(partialPath[s], s)
-		}
-		fullPath = partialPath
-	}
-
-	// Select the path that arrives at either E or S state,
-	// whichever has the highest hidden state probability.
-	e := hiddenStateProba[len(textRune)-1]["E"]
-	s := hiddenStateProba[len(textRune)-1]["S"]
-	if e > s {
-		return fullPath["E"]
-	} else {
-		return fullPath["S"]
-	}
-}
-
-// Find the most likely route that connects one state to the next.
-// For example, hidden state B could be preceded by either an E or
-// a S. This function finds the most likely route (E->B vs S->B)
-// along with the route's log probability.
-func (tk *Tokenizer) stateTransitionRoute(step int, nowState string, hiddenStates map[int]map[string]float64) transitionRoute {
-	// List all possible routes and calculate their log probabilities.
-	routes := map[string]float64{}
-	for _, prevState := range stateChange[nowState] {
-		prevProb := hiddenStates[step-1][prevState]
-		routeProb := prevProb + tk.transP[prevState][nowState]
-		routes[prevState] = routeProb
-	}
-
-	// Pick the route with the highest log probability.
-	bestPrevState := ""
-	bestRouteProba := minFloat
-	for prevState, routeProba := range routes {
-		if routeProba > bestRouteProba {
-			bestPrevState = prevState
-			bestRouteProba = routeProba
-		}
-	}
-	bestRoute := transitionRoute{bestPrevState, bestRouteProba}
-	return bestRoute
 }
 
 // Cut `text` according the the path found by the Viterbi algorithm.
@@ -699,4 +565,146 @@ func (tk *Tokenizer) suggestFreq(word string) int {
 		return a
 	}
 	return b
+}
+
+type hiddenMarkovModel struct {
+	startP map[string]float64
+	transP map[string]map[string]float64
+	emitP  map[string]map[string]float64
+	ready  bool
+}
+
+func newHMM(startProba map[string]float64, transitionProba, emitProba map[string]map[string]float64) hiddenMarkovModel {
+	return hiddenMarkovModel{startProba, transitionProba, emitProba, true}
+}
+
+// Load jieba's trained Hidden Markov model.
+func newJiebaHMM() hiddenMarkovModel {
+	startP := map[string]float64{
+		"B": -0.26268660809250016,
+		"E": minFloat,
+		"M": minFloat,
+		"S": -1.4652633398537678,
+	}
+	transP := map[string]map[string]float64{
+		"B": {
+			"E": -0.51082562376599,  // B->E
+			"M": -0.916290731874155, // B->M
+		},
+		"E": {
+			"B": -0.5897149736854513, // E->B
+			"S": -0.8085250474669937, // E->S
+		},
+		"M": {
+			"E": -0.33344856811948514, // M->E
+			"M": -1.2603623820268226,  // M->M
+		},
+		"S": {
+			"B": -0.7211965654669841, // S->B
+			"S": -0.6658631448798212, // S->S
+		},
+	}
+	emitP := map[string]map[string]float64{} // "B": {"word": -1.1, ...}, ...
+	jsonData, err := os.ReadFile("prob_emit.json")
+	if err != nil {
+		panic(fmt.Sprintf("failed to read prob_emit.json: %v", err))
+	}
+	err = json.Unmarshal(jsonData, &emitP)
+	if err != nil {
+		panic(fmt.Sprintf("failed to unmarshal json data: %v", err))
+	}
+
+	return newHMM(startP, transP, emitP)
+}
+
+// Use the Viterbi algorithm to find the hidden states of all
+// characters in `text`, and the path of highest probability.
+func (hmm *hiddenMarkovModel) viterbi(text string) []string {
+	textRune := []rune(text)
+
+	// Always return "S" for a single-piece input.
+	if len(textRune) == 1 {
+		return []string{"S"}
+	}
+
+	hiddenStateProba := map[int]map[string]float64{
+		0: {},
+	}
+	fullPath := map[string][]string{
+		"B": {"B"},
+		"M": {"M"},
+		"E": {"E"},
+		"S": {"S"},
+	}
+	HMMstates := []string{"B", "M", "E", "S"}
+
+	// Initial probabilities for each hidden state at rune[0]
+	for _, s := range HMMstates {
+		emit, found := hmm.emitP[s][string(textRune[0])]
+		if !found {
+			emit = minFloat
+		}
+		startProba := hmm.startP[s] + emit
+		hiddenStateProba[0][s] = startProba
+	}
+
+	// Calculate probabilities for each hidden state from rune[1]
+	// to rune[-1], and find the best route in between all state
+	// transitions.
+	for i_, char := range textRune[1:] {
+		i := i_ + 1
+		hiddenStateProba[i] = map[string]float64{}
+		partialPath := map[string][]string{}
+		// Find the most likely route preceding each state,
+		// and the route's log probability.
+		for _, s := range HMMstates {
+			route := hmm.stateTransitionRoute(i, s, hiddenStateProba)
+			emitProba, found := hmm.emitP[s][string(char)]
+			if !found {
+				emitProba = minFloat
+			}
+			stateProba := route.proba + emitProba
+			hiddenStateProba[i][s] = stateProba
+			// Append route to fullPath.
+			partialPath[s] = append(partialPath[s], fullPath[route.from]...)
+			partialPath[s] = append(partialPath[s], s)
+		}
+		fullPath = partialPath
+	}
+
+	// Select the path that arrives at either E or S state,
+	// whichever has the highest hidden state probability.
+	e := hiddenStateProba[len(textRune)-1]["E"]
+	s := hiddenStateProba[len(textRune)-1]["S"]
+	if e > s {
+		return fullPath["E"]
+	} else {
+		return fullPath["S"]
+	}
+}
+
+// Find the most likely route that connects one state to the next.
+// For example, hidden state B could be preceded by either an E or
+// a S. This function finds the most likely route (E->B vs S->B)
+// along with the route's log probability.
+func (hmm *hiddenMarkovModel) stateTransitionRoute(step int, nowState string, hiddenStates map[int]map[string]float64) transitionRoute {
+	// List all possible routes and calculate their log probabilities.
+	routes := map[string]float64{}
+	for _, prevState := range stateChange[nowState] {
+		prevProb := hiddenStates[step-1][prevState]
+		routeProb := prevProb + hmm.transP[prevState][nowState]
+		routes[prevState] = routeProb
+	}
+
+	// Pick the route with the highest log probability.
+	bestPrevState := ""
+	bestRouteProba := minFloat
+	for prevState, routeProba := range routes {
+		if routeProba > bestRouteProba {
+			bestPrevState = prevState
+			bestRouteProba = routeProba
+		}
+	}
+	bestRoute := transitionRoute{bestPrevState, bestRouteProba}
+	return bestRoute
 }

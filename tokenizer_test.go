@@ -383,41 +383,40 @@ func TestCutDag(t *testing.T) {
 }
 
 func TestLoadHMM(t *testing.T) {
-	tk := newTokenizer(false)
-	tk.loadHMM()
-	if tk.emitP["B"]["一"] != -3.6544978750449433 {
+	hmm := newJiebaHMM()
+	if hmm.emitP["B"]["一"] != -3.6544978750449433 {
 		t.Error("load HMM failed")
 	}
-	if tk.emitP["M"]["一"] != -4.428158526435913 {
+	if hmm.emitP["M"]["一"] != -4.428158526435913 {
 		t.Error("load HMM failed")
 	}
-	if tk.emitP["E"]["一"] != -6.044987536255073 {
+	if hmm.emitP["E"]["一"] != -6.044987536255073 {
 		t.Error("load HMM failed")
 	}
-	if tk.emitP["S"]["一"] != -4.92368982120877 {
+	if hmm.emitP["S"]["一"] != -4.92368982120877 {
 		t.Error("load HMM failed")
 	}
 }
 
 func TestViterbi(t *testing.T) {
-	tk := newTokenizer(true)
+	hmm := newJiebaHMM()
 	t.Run("viterbi case 1", func(t *testing.T) {
 		text := "天氣很好"
 		want := []string{"B", "E", "S", "S"}
-		got := tk.viterbi(text)
+		got := hmm.viterbi(text)
 		assertDeepEqual(t, want, got)
 	})
 
 	t.Run("viterbi case 2", func(t *testing.T) {
 		text := "大學與老師討論"
 		want := []string{"B", "E", "S", "B", "E", "B", "E"}
-		got := tk.viterbi(text)
+		got := hmm.viterbi(text)
 		assertDeepEqual(t, want, got)
 	})
 }
 
 func TestStateTransitionRoute(t *testing.T) {
-	tk := newTokenizer(true)
+	hmm := newJiebaHMM()
 	hsProb := map[int]map[string]float64{
 		0: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
 		1: {"B": 1.1, "M": 1.1, "E": 1.1, "S": 1.1},
@@ -435,7 +434,7 @@ func TestStateTransitionRoute(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotRoute := tk.stateTransitionRoute(step, c.nowState, hsProb)
+			gotRoute := hmm.stateTransitionRoute(step, c.nowState, hsProb)
 			assertEqual(t, c.wantFrom, gotRoute.from)
 		})
 	}
@@ -751,11 +750,11 @@ func BenchmarkCutDag(b *testing.B) {
 
 // 64,731 ns/op
 func BenchmarkViterbi(b *testing.B) {
-	tk := newTokenizer(true)
+	hmm := newJiebaHMM()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.viterbi("我昨天去上海交通大學與老師討論量子力學")
+		hmm.viterbi("我昨天去上海交通大學與老師討論量子力學")
 	}
 }
 
@@ -777,15 +776,15 @@ goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkCutBigTextParallel-6                 12          92710594 ns/op        165219404 B/op   2331807 allocs/op
-BenchmarkCutBigText-6                          4         327280788 ns/op        134408870 B/op   2331841 allocs/op
-BenchmarkCut-6                             31472             36895 ns/op           19716 B/op        322 allocs/op
-BenchmarkBuildDag-6                       251918              4237 ns/op            2473 B/op         32 allocs/op
-BenchmarkFindDAGPath-6                    243849              4607 ns/op            2161 B/op         30 allocs/op
-BenchmarkFindBestPath-6                  2248059               528 ns/op             496 B/op          5 allocs/op
-BenchmarkCutDag-6                        1000000              1064 ns/op             624 B/op         21 allocs/op
-BenchmarkViterbi-6                         17935             66896 ns/op           52982 B/op        508 allocs/op
-BenchmarkBuildPrefDict-6                       7         149018897 ns/op        51680593 B/op    1346011 allocs/op
+BenchmarkCutBigTextParallel-6                 12          92666210 ns/op        161146330 B/op   1798667 allocs/op
+BenchmarkCutBigText-6                          4         294070694 ns/op        119914182 B/op   1798635 allocs/op
+BenchmarkCut-6                             37746             31255 ns/op           16131 B/op        210 allocs/op
+BenchmarkBuildDag-6                       240375              4525 ns/op            2473 B/op         32 allocs/op
+BenchmarkFindDAGPath-6                    229970              4638 ns/op            2161 B/op         30 allocs/op
+BenchmarkFindBestPath-6                  2365944               528.5 ns/op           496 B/op          5 allocs/op
+BenchmarkCutDag-6                        1000000              1067 ns/op             624 B/op         21 allocs/op
+BenchmarkViterbi-6                         22801             50813 ns/op           43767 B/op        220 allocs/op
+BenchmarkBuildPrefDict-6                       8         142378288 ns/op        51680588 B/op    1346011 allocs/op
 */
 
 func newTokenizer(hmm bool) Tokenizer {
@@ -793,8 +792,8 @@ func newTokenizer(hmm bool) Tokenizer {
 	tk.initOk = true
 	tk.dictSize = dictSize
 	tk.prefixDict = prefixDictionary
-	if hmm {
-		tk.loadHMM()
+	if !tk.hmm.ready {
+		tk.hmm = newJiebaHMM()
 	}
 	// The return statement copies a sync.RWMutex lock.
 	// This is intentional. Each Tokenizer instance in
