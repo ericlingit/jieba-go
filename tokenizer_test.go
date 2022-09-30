@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const dictSize = 60_101_967
+const dictSize = 60_101_964
 
 var prefixDictionary = loadPrefixDictionaryFromGob()
 
