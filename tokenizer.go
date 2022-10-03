@@ -28,18 +28,6 @@ var stateChange = map[string][]string{
 	"S": {"E", "S"},
 }
 
-type Tokenizer struct {
-	CustomDict string
-	initOk     bool
-	hmm        hiddenMarkovModel
-	prefixDict map[string]int
-	dictSize   int
-	dictLock   sync.RWMutex
-	// Values below are for debugging.
-	dag      map[int][]int
-	dagProba map[int][]tailProba
-}
-
 type textBlock struct {
 	id        int
 	text      string
@@ -52,8 +40,8 @@ type resultBlock struct {
 }
 
 type tailProba struct {
-	Index int
-	Proba float64
+	index int
+	proba float64
 }
 
 type transitionRoute struct {
@@ -61,13 +49,38 @@ type transitionRoute struct {
 	proba float64
 }
 
+type Tokenizer struct {
+	ready bool
+	pd    prefixDictionary
+	hmm   hiddenMarkovModel
+	// Values below are for debugging.
+	dag      map[int][]int
+	dagProba map[int][]tailProba
+}
+
+func NewTokenizer(dictionaryFile string) *Tokenizer {
+	tk := Tokenizer{}
+	tk.pd = *newPrefixDictionaryFromFile(dictionaryFile)
+	tk.hmm = newJiebaHMM()
+	tk.ready = true
+	return &tk
+}
+
+func NewJiebaTokenizer() *Tokenizer {
+	tk := Tokenizer{}
+	tk.pd = *newJiebaPrefixDictionary()
+	tk.hmm = newJiebaHMM()
+	tk.ready = true
+	return &tk
+}
+
 // Perform Cut in worker goroutines in parallel.
 // If ordered is true, the returned slice will be sorted
 // according to the order of the input text. Sorting will
 // adversely impact performance by approximately 30%.
 func (tk *Tokenizer) CutParallel(text string, hmm bool, numWorkers int, ordered bool) []string {
-	tk.dictLock.RLock()
-	defer tk.dictLock.RUnlock()
+	tk.pd.lock.RLock()
+	defer tk.pd.lock.RUnlock()
 	// Split text into zh and non-zh blocks.
 	blocks := make(chan textBlock, len(text))
 	zhIndexes := zh.FindAllIndex([]byte(text), -1)
@@ -136,14 +149,8 @@ func (tk *Tokenizer) worker(blocks chan textBlock, stop chan struct{}, result ch
 
 // Cut text and return a slice of tokens.
 func (tk *Tokenizer) Cut(text string, useHmm bool) []string {
-	if !tk.initOk {
-		tk.initialize()
-	}
-	if useHmm && !tk.hmm.ready {
-		tk.hmm = newJiebaHMM()
-	}
-	tk.dictLock.RLock()
-	defer tk.dictLock.RUnlock()
+	tk.pd.lock.RLock()
+	defer tk.pd.lock.RUnlock()
 	zhIndexes := zh.FindAllIndex([]byte(text), -1)
 	blocks := splitText(text, zhIndexes)
 
@@ -257,14 +264,14 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 	textRunes := []rune(text)
 	pieces := [][2]int{}
 	for i, iRune := range textRunes {
-		count, found := tk.prefixDict[string(iRune)]
+		count, found := tk.pd.termFreq[string(iRune)]
 		if !found || count == 0 {
 			pieces = append(pieces, [2]int{i, i + 1})
 			continue
 		}
 		for j := range textRunes[i:] {
 			part := textRunes[i : j+1+i]
-			val, found := tk.prefixDict[string(part)]
+			val, found := tk.pd.termFreq[string(part)]
 			if !found {
 				break
 			}
@@ -293,7 +300,7 @@ func (tk *Tokenizer) buildDAG(text string) map[int][]int {
 // and return the best path for each rune in `text`.
 // The return value's index are based on []rune(text).
 func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
-	total := math.Log(float64(tk.dictSize))
+	total := math.Log(float64(tk.pd.size))
 	textRunes := []rune(text)
 	dagProba := make(map[int][]tailProba, len(textRunes))
 
@@ -306,7 +313,7 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			// piece_frequency = log(prefix_dictionary.get(piece) or 1.0) - total
 			// piece_proba = piece_frequency + next_piece_proba
 			tf := 1.0
-			if val, found := tk.prefixDict[string(textRunes[i:j])]; found {
+			if val, found := tk.pd.termFreq[string(textRunes[i:j])]; found {
 				tf = float64(val)
 			}
 			pieceFreq := math.Log(tf) - total
@@ -319,7 +326,7 @@ func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
 			// There could be more than 1 nextPiece, use the one
 			// with the highest log probability.
 			nextBestPiece := tk.maxIndexProba(nextPiece)
-			pieceProba := pieceFreq + nextBestPiece.Proba
+			pieceProba := pieceFreq + nextBestPiece.proba
 			dagProba[i] = append(dagProba[i], tailProba{j, pieceProba})
 			// fmt.Printf(
 			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sProba dagProba[%d][%d])\n",
@@ -346,12 +353,12 @@ func (tk *Tokenizer) maxIndexProba(items []tailProba) tailProba {
 	prev := tailProba{-1, minFloat}
 	best := tailProba{-1, minFloat}
 	for _, item := range items {
-		if item.Proba >= prev.Proba {
+		if item.proba >= prev.proba {
 			best = item
 		}
 		prev = item
 	}
-	if best.Index == -1 {
+	if best.index == -1 {
 		return prev
 	}
 	return best
@@ -365,8 +372,8 @@ func (tk *Tokenizer) findBestPath(text string, dagProba map[int][]tailProba) [][
 	bestPath := [][2]int{}
 	for i := 0; i < len(textRunes) && i >= 0; {
 		tail := tk.maxIndexProba(dagProba[i])
-		bestPath = append(bestPath, [2]int{i, tail.Index})
-		i = tail.Index
+		bestPath = append(bestPath, [2]int{i, tail.index})
+		i = tail.index
 	}
 	return bestPath
 }
@@ -422,53 +429,6 @@ func (tk *Tokenizer) cutNonZh(text string) []string {
 	return textPieces
 }
 
-// Initialize the Tokenizer. If CustomDict is specified, a prefix
-// dictionary will be built from this file. If CustomDict is not
-// specified, a pre-built prefix dictionary will be loaded.
-func (tk *Tokenizer) initialize() {
-	tk.dictLock.Lock()
-	defer tk.dictLock.Unlock()
-	// Build a prefix dictionary from user-proviced dictionary
-	// file.
-	if len(tk.CustomDict) != 0 {
-		// Open & collect dictionary file lines.
-		reader, err := os.Open(tk.CustomDict)
-		if err != nil {
-			log.Fatalf("failed to read custom dictionary file: %v", err)
-		}
-		defer reader.Close()
-		scanner := bufio.NewScanner(reader)
-		scanner.Split(bufio.ScanLines)
-		lines := []string{}
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
-		}
-
-		// Build a prefix dictionary from lines collected during the above step.
-		pdErr := tk.buildPrefixDictionary(lines)
-		if pdErr != nil {
-			log.Fatalf("failed to build prefix dictionary: %v", pdErr)
-		}
-		tk.initOk = true
-		return
-	}
-
-	// Load pre-built prefix dictionary from gob file.
-	gobFile, err := os.Open("prefix_dictionary.gob")
-	if err != nil {
-		log.Fatalf("failed to open gob file: %v", err)
-	}
-	defer gobFile.Close()
-	// Decode to pfDict map.
-	pfDict := map[string]int{}
-	decoder := gob.NewDecoder(gobFile)
-	if err := decoder.Decode(&pfDict); err != nil {
-		log.Fatalf("failed to decode pfDict from gobFile: %v", err)
-	}
-	tk.prefixDict = pfDict
-	tk.initOk = true
-}
-
 /*Build a prefix dictionary from `dictionaryLines`.
 
 The dictionaryLines is a slice of strings that has the
@@ -498,7 +458,7 @@ For example:
 }
 */
 func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
-	tk.prefixDict = make(map[string]int, len(dictionaryLines)*2)
+	tk.pd.termFreq = make(map[string]int, len(dictionaryLines)*2)
 	total := 0
 	for _, line := range dictionaryLines {
 		parts := strings.SplitN(line, " ", 3)
@@ -508,20 +468,20 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 			return err
 		}
 		total += count
-		tk.prefixDict[word] = count
+		tk.pd.termFreq[word] = count
 
 		// Add word pieces.
 		wordR := []rune(word)
 		piece := ""
 		for _, char := range wordR[:len(wordR)-1] {
 			piece += string(char)
-			_, found := tk.prefixDict[piece]
+			_, found := tk.pd.termFreq[piece]
 			if !found {
-				tk.prefixDict[piece] = 0
+				tk.pd.termFreq[piece] = 0
 			}
 		}
 	}
-	tk.dictSize = total
+	tk.pd.size = total
 	return nil
 }
 
@@ -531,41 +491,11 @@ func (tk *Tokenizer) buildPrefixDictionary(dictionaryLines []string) error {
 // automatically calculated.
 func (tk *Tokenizer) AddWord(word string, freq int) {
 	if freq < 1 {
-		freq = tk.suggestFreq(word)
+		freq = tk.pd.suggestFreq(word, tk)
 	}
-	tk.dictLock.Lock()
-	defer tk.dictLock.Unlock()
-	tk.prefixDict[word] = freq
-	tk.dictSize += freq
-}
-
-// Calculate a frequency value based on current prefix
-// dictionary and its total size.
-func (tk *Tokenizer) suggestFreq(word string) int {
-	dSize := float64(tk.dictSize)
-	if dSize < 1.0 {
-		dSize = 1.0
-	}
-	freq := 1.0
-	pieces := tk.Cut(word, false)
-	for _, p := range pieces {
-		pFreq, found := tk.prefixDict[p]
-		if !found {
-			pFreq = 1
-		}
-		freq *= float64(pFreq) / dSize
-	}
-
-	a := int(freq*dSize) + 1
-	b := 1
-	val, found := tk.prefixDict[word]
-	if found {
-		b = val
-	}
-	if a > b {
-		return a
-	}
-	return b
+	tk.pd.lock.Lock()
+	defer tk.pd.lock.Unlock()
+	tk.pd.addTerm(word, freq)
 }
 
 type prefixDictionary struct {
@@ -575,12 +505,6 @@ type prefixDictionary struct {
 	lock     sync.RWMutex
 	source   string
 }
-
-/*
-TODO Methods:
-	addTerm()
-	suggestFreq()
-*/
 
 func newPrefixDictionaryFromFile(filename string) *prefixDictionary {
 	pd := prefixDictionary{}
@@ -651,6 +575,42 @@ func newJiebaPrefixDictionary() *prefixDictionary {
 	pd.ready = true
 	pd.source = "prefix_dictionary.gob"
 	return &pd
+}
+
+func (pd *prefixDictionary) addTerm(term string, freq int) {
+	pd.lock.Lock()
+	defer pd.lock.Unlock()
+	pd.termFreq[term] = freq
+	pd.size += freq
+}
+
+// Calculate a frequency value based on current prefix
+// dictionary and its total size.
+func (pd *prefixDictionary) suggestFreq(term string, tk *Tokenizer) int {
+	dSize := float64(pd.size)
+	if dSize < 1.0 {
+		dSize = 1.0
+	}
+	freq := 1.0
+	pieces := tk.Cut(term, false)
+	for _, p := range pieces {
+		pieceFreq, found := pd.termFreq[p]
+		if !found {
+			pieceFreq = 1
+		}
+		freq *= float64(pieceFreq) / dSize
+	}
+
+	a := int(freq*dSize) + 1
+	b := 1
+	val, found := pd.termFreq[term]
+	if found {
+		b = val
+	}
+	if a > b {
+		return a
+	}
+	return b
 }
 
 /*

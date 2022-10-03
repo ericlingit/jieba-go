@@ -1,7 +1,6 @@
 package tokenizer
 
 import (
-	"bufio"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -10,24 +9,24 @@ import (
 	"testing"
 )
 
-const dictSize = 60_101_964
+// const dictSize = 60_101_964
 
-var prefixDictionary = loadPrefixDictionaryFromGob()
+var jiebaPrefixDictionary = loadPrefixDictionaryFromGob()
 
 func TestCutBigTextParallel(t *testing.T) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	text := loadBigText()
 	tk.CutParallel(text, true, 6, false)
 }
 
 func TestCutBigText(t *testing.T) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	text := loadBigText()
 	tk.Cut(text, true)
 }
 
 func TestCut(t *testing.T) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	cases := []struct {
 		name string
 		text string
@@ -81,7 +80,7 @@ func TestSplitText(t *testing.T) {
 }
 
 func TestBuildDAG(t *testing.T) {
-	tk := newTokenizer(false)
+	tk := NewJiebaTokenizer()
 	cases := []struct {
 		text string
 		want map[int][]int
@@ -135,7 +134,7 @@ func TestBuildDAG(t *testing.T) {
 }
 
 func TestFindDAGPath(t *testing.T) {
-	tk := newTokenizer(false)
+	tk := NewJiebaTokenizer()
 	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
 		text := "今天天氣很好"
 		dag := map[int][]int{
@@ -240,8 +239,8 @@ func TestMaxIndexProba(t *testing.T) {
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			got := tk.maxIndexProba(c.candidates)
-			assertEqual(t, c.wantIdx, got.Index)
-			assertEqual(t, c.wantProba, got.Proba)
+			assertEqual(t, c.wantIdx, got.index)
+			assertEqual(t, c.wantProba, got.proba)
 		})
 	}
 }
@@ -342,7 +341,7 @@ func TestFindBestPath(t *testing.T) {
 }
 
 func TestCutDag(t *testing.T) {
-	tk := newTokenizer(false)
+	tk := NewJiebaTokenizer()
 	t.Run("cut dag 1", func(t *testing.T) {
 		text := "今天天氣很好"
 		dPath := [][2]int{
@@ -441,7 +440,7 @@ func TestStateTransitionRoute(t *testing.T) {
 }
 
 func TestCutHMM(t *testing.T) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	t.Run("cut hmm 1", func(t *testing.T) {
 		text := "天氣很好"
 		vPath := []string{"B", "E", "S", "S"}
@@ -479,50 +478,50 @@ func TestCutNonZh(t *testing.T) {
 	}
 }
 
-func TestInitialize(t *testing.T) {
-	t.Run("with custom dictionary", func(t *testing.T) {
-		f, _ := os.CreateTemp("", "aaa.txt")
-		defer os.Remove(f.Name())
-		f.Write([]byte("今天 10 x\n天氣 3\n"))
+// func TestInitialize(t *testing.T) {
+// 	t.Run("with custom dictionary", func(t *testing.T) {
+// 		f, _ := os.CreateTemp("", "aaa.txt")
+// 		defer os.Remove(f.Name())
+// 		f.Write([]byte("今天 10 x\n天氣 3\n"))
 
-		tk := Tokenizer{}
-		tk.CustomDict = f.Name()
-		tk.initialize()
-		if tk.initOk != true {
-			t.Errorf("initialize failed")
-		}
-		want := map[string]int{
-			"今":  0,
-			"今天": 10,
-			"天":  0,
-			"天氣": 3,
-		}
-		assertDeepEqual(t, want, tk.prefixDict)
-		wantSize := 13
-		assertEqual(t, wantSize, tk.dictSize)
-	})
+// 		tk := Tokenizer{}
+// 		tk.CustomDict = f.Name()
+// 		tk.initialize()
+// 		if tk.ready != true {
+// 			t.Errorf("initialize failed")
+// 		}
+// 		want := map[string]int{
+// 			"今":  0,
+// 			"今天": 10,
+// 			"天":  0,
+// 			"天氣": 3,
+// 		}
+// 		assertDeepEqual(t, want, tk.prefixDict)
+// 		wantSize := 13
+// 		assertEqual(t, wantSize, tk.dictSize)
+// 	})
 
-	t.Run("without custom dictionary", func(t *testing.T) {
-		tk := Tokenizer{}
-		tk.initialize()
-		if tk.initOk != true {
-			t.Errorf("initialize failed")
-		}
+// 	t.Run("without custom dictionary", func(t *testing.T) {
+// 		tk := Tokenizer{}
+// 		tk.initialize()
+// 		if tk.ready != true {
+// 			t.Errorf("initialize failed")
+// 		}
 
-		// Sample the first 100 items.
-		i := 100
-		for k, wantCount := range prefixDictionary {
-			gotCount := tk.prefixDict[k]
-			if wantCount != gotCount {
-				t.Errorf("bad prefix dictionary. %q wants %d, got %d", k, wantCount, gotCount)
-			}
-			if i <= 0 {
-				break
-			}
-			i--
-		}
-	})
-}
+// 		// Sample the first 100 items.
+// 		i := 100
+// 		for k, wantCount := range jiebaPrefixDictionary {
+// 			gotCount := tk.prefixDict[k]
+// 			if wantCount != gotCount {
+// 				t.Errorf("bad prefix dictionary. %q wants %d, got %d", k, wantCount, gotCount)
+// 			}
+// 			if i <= 0 {
+// 				break
+// 			}
+// 			i--
+// 		}
+// 	})
+// }
 
 func TestBuildPrefixDict(t *testing.T) {
 	tk := Tokenizer{}
@@ -557,32 +556,29 @@ func TestBuildPrefixDict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertDeepEqual(t, want, tk.prefixDict)
+	assertDeepEqual(t, want, tk.pd.termFreq)
 }
 
 func TestBuildPrefixDictFromScratch(t *testing.T) {
-	tk := Tokenizer{}
-	tk.CustomDict = "dict.txt"
-	lines := loadDictionaryFile(tk.CustomDict)
+	pd := newPrefixDictionaryFromFile("dict.txt")
 
-	tk.buildPrefixDictionary(lines)
 	// Compare ALL items in `prefixDictionary` to
 	// `tk.prefixDict`.
-	assertDeepEqualLoop(t, prefixDictionary, tk.prefixDict)
+	assertDeepEqualLoop(t, jiebaPrefixDictionary, pd.termFreq)
 }
 
 func TestAddWord(t *testing.T) {
-	tk := Tokenizer{}
-	tk.prefixDict = map[string]int{}
-	newWords := map[string]int{
+	pd := prefixDictionary{}
+	pd.termFreq = map[string]int{}
+	newTerms := map[string]int{
 		"左和右": 20,
 		"上和下": 80,
 	}
-	for word, freq := range newWords {
-		tk.AddWord(word, freq)
+	for term, freq := range newTerms {
+		pd.addTerm(term, freq)
 	}
-	for word, freq := range newWords {
-		val, found := tk.prefixDict[word]
+	for word, freq := range newTerms {
+		val, found := pd.termFreq[word]
 		if !found {
 			t.Errorf("want %q in prefixDict, not found", word)
 		}
@@ -590,25 +586,8 @@ func TestAddWord(t *testing.T) {
 			t.Errorf("want %d for %q, got %d", freq, word, val)
 		}
 	}
-	if tk.dictSize != 100 {
-		t.Errorf("want 100 for dictSize, got %d", tk.dictSize)
-	}
-}
-
-func TestSuggestFreq(t *testing.T) {
-	tk := newTokenizer(false)
-	cases := []struct {
-		word string
-		freq int
-	}{
-		{"左和右", 1},
-		{"上和下", 5},
-	}
-	for _, c := range cases {
-		got := tk.suggestFreq(c.word)
-		if c.freq != got {
-			t.Errorf("want %d for %q, got %d", c.freq, c.word, got)
-		}
+	if pd.size != 100 {
+		t.Errorf("want 100 for size, got %d", pd.size)
 	}
 }
 
@@ -618,7 +597,7 @@ func TestSuggestFreq(t *testing.T) {
 
 // 92,710,594 ns/op
 func BenchmarkCutBigTextParallel(b *testing.B) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	text := loadBigText()
 
 	b.ResetTimer()
@@ -629,7 +608,7 @@ func BenchmarkCutBigTextParallel(b *testing.B) {
 
 // 318,559,415 ns/op
 func BenchmarkCutBigText(b *testing.B) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 	text := loadBigText()
 
 	b.ResetTimer()
@@ -640,7 +619,7 @@ func BenchmarkCutBigText(b *testing.B) {
 
 // 42,705 ns/op
 func BenchmarkCut(b *testing.B) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -650,7 +629,7 @@ func BenchmarkCut(b *testing.B) {
 
 // 4,4289 ns/op
 func BenchmarkBuildDag(b *testing.B) {
-	tk := newTokenizer(true)
+	tk := NewJiebaTokenizer()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -660,7 +639,7 @@ func BenchmarkBuildDag(b *testing.B) {
 
 // 9,598 ns/op
 func BenchmarkFindDAGPath(b *testing.B) {
-	tk := newTokenizer(false)
+	tk := NewJiebaTokenizer()
 	dag := map[int][]int{
 		0:  {1},
 		1:  {2, 3}, // 昨 昨天
@@ -722,7 +701,7 @@ func BenchmarkFindBestPath(b *testing.B) {
 
 // 1,039 ns/op
 func BenchmarkCutDag(b *testing.B) {
-	tk := newTokenizer(false)
+	tk := NewJiebaTokenizer()
 	dag := [][2]int{
 		{0, 1},
 		{1, 3}, // 昨天
@@ -758,15 +737,10 @@ func BenchmarkViterbi(b *testing.B) {
 	}
 }
 
-// 140,353,760 ns/op
+//  ns/op
 func BenchmarkBuildPrefDict(b *testing.B) {
-	tk := Tokenizer{}
-	tk.CustomDict = "dict.txt"
-	lines := loadDictionaryFile(tk.CustomDict)
-
-	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.buildPrefixDictionary(lines)
+		newPrefixDictionaryFromFile("dict.txt")
 	}
 }
 
@@ -786,20 +760,6 @@ BenchmarkCutDag-6                        1000000              1067 ns/op        
 BenchmarkViterbi-6                         22801             50813 ns/op           43767 B/op        220 allocs/op
 BenchmarkBuildPrefDict-6                       8         142378288 ns/op        51680588 B/op    1346011 allocs/op
 */
-
-func newTokenizer(hmm bool) Tokenizer {
-	tk := Tokenizer{}
-	tk.initOk = true
-	tk.dictSize = dictSize
-	tk.prefixDict = prefixDictionary
-	if !tk.hmm.ready {
-		tk.hmm = newJiebaHMM()
-	}
-	// The return statement copies a sync.RWMutex lock.
-	// This is intentional. Each Tokenizer instance in
-	// every test should be independent of each other.
-	return tk
-}
 
 func assertDeepEqual(t *testing.T, want, got interface{}) {
 	t.Helper()
@@ -852,21 +812,20 @@ func loadPrefixDictionaryFromGob() map[string]int {
 	return pfDict
 }
 
-func loadDictionaryFile(f string) []string {
-	reader, err := os.Open(f)
-	if err != nil {
-		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
-	}
-	defer reader.Close()
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanLines)
-	lines := []string{}
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	reader.Close()
-	return lines
-}
+// func loadDictionaryFile(f string) []string {
+// 	reader, err := os.Open(f)
+// 	if err != nil {
+// 		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
+// 	}
+// 	defer reader.Close()
+// 	scanner := bufio.NewScanner(reader)
+// 	scanner.Split(bufio.ScanLines)
+// 	lines := []string{}
+// 	for scanner.Scan() {
+// 		lines = append(lines, scanner.Text())
+// 	}
+// 	return lines
+// }
 
 // func savePrefixDictionaryToGob() {
 // 	// Read dict.txt.
