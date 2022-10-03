@@ -436,6 +436,7 @@ func (tk *Tokenizer) initialize() {
 		if err != nil {
 			log.Fatalf("failed to read custom dictionary file: %v", err)
 		}
+		defer reader.Close()
 		scanner := bufio.NewScanner(reader)
 		scanner.Split(bufio.ScanLines)
 		lines := []string{}
@@ -458,6 +459,7 @@ func (tk *Tokenizer) initialize() {
 	if err != nil {
 		log.Fatalf("failed to open gob file: %v", err)
 	}
+	defer gobFile.Close()
 	// Decode to pfDict map.
 	pfDict := map[string]int{}
 	decoder := gob.NewDecoder(gobFile)

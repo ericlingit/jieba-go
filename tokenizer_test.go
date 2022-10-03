@@ -841,6 +841,7 @@ func loadPrefixDictionaryFromGob() map[string]int {
 	if err != nil {
 		panic(fmt.Sprintf("failed to open gob file: %v", err))
 	}
+	defer gobFile.Close()
 	// Decode to pfDict map.
 	pfDict := map[string]int{}
 	decoder := gob.NewDecoder(gobFile)
@@ -856,6 +857,7 @@ func loadDictionaryFile(f string) []string {
 	if err != nil {
 		panic(fmt.Sprintf("failed to read custom dictionary file: %v\n", err))
 	}
+	defer reader.Close()
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanLines)
 	lines := []string{}
