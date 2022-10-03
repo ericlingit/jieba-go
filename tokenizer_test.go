@@ -750,15 +750,15 @@ goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkCutBigTextParallel-6                 12          92666210 ns/op        161146330 B/op   1798667 allocs/op
-BenchmarkCutBigText-6                          4         294070694 ns/op        119914182 B/op   1798635 allocs/op
-BenchmarkCut-6                             37746             31255 ns/op           16131 B/op        210 allocs/op
-BenchmarkBuildDag-6                       240375              4525 ns/op            2473 B/op         32 allocs/op
-BenchmarkFindDAGPath-6                    229970              4638 ns/op            2161 B/op         30 allocs/op
-BenchmarkFindBestPath-6                  2365944               528.5 ns/op           496 B/op          5 allocs/op
-BenchmarkCutDag-6                        1000000              1067 ns/op             624 B/op         21 allocs/op
-BenchmarkViterbi-6                         22801             50813 ns/op           43767 B/op        220 allocs/op
-BenchmarkBuildPrefDict-6                       8         142378288 ns/op        51680588 B/op    1346011 allocs/op
+BenchmarkCutBigTextParallel-6                 13          89511086 ns/op        161128611 B/op   1798660 allocs/op
+BenchmarkCutBigText-6                          4         302533994 ns/op        119893410 B/op   1798657 allocs/op
+BenchmarkCut-6                             37684             31373 ns/op           16121 B/op        210 allocs/op
+BenchmarkBuildDag-6                       296812              4237 ns/op            2472 B/op         32 allocs/op
+BenchmarkFindDAGPath-6                    264108              4587 ns/op            2161 B/op         30 allocs/op
+BenchmarkFindBestPath-6                  2345866               501.9 ns/op           496 B/op          5 allocs/op
+BenchmarkCutDag-6                        1000000              1035 ns/op             624 B/op         21 allocs/op
+BenchmarkViterbi-6                         22934             50580 ns/op           43766 B/op        220 allocs/op
+BenchmarkBuildPrefDict-6                      13          85710548 ns/op        37479299 B/op     699994 allocs/op
 */
 
 func assertDeepEqual(t *testing.T, want, got interface{}) {
