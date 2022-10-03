@@ -80,7 +80,7 @@ func TestSplitText(t *testing.T) {
 }
 
 func TestBuildDAG(t *testing.T) {
-	tk := NewJiebaTokenizer()
+	pd := newJiebaPrefixDictionary()
 	cases := []struct {
 		text string
 		want map[int][]int
@@ -127,83 +127,13 @@ func TestBuildDAG(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
-			got := tk.buildDAG(c.text)
+			got := pd.buildDag(c.text)
 			assertDeepEqual(t, c.want, got)
 		})
 	}
 }
 
-func TestFindDAGPath(t *testing.T) {
-	tk := NewJiebaTokenizer()
-	t.Run("find DAG path: 今天天氣很好", func(t *testing.T) {
-		text := "今天天氣很好"
-		dag := map[int][]int{
-			0: {1, 2}, // 今, 今天
-			1: {2, 3}, // 天, 天天
-			2: {3},    // 天
-			3: {4},    // 氣
-			4: {5},    // 很
-			5: {6},    // 好
-		}
-		want := [][2]int{
-			{0, 2}, // text[0:2] = 今天
-			{2, 3}, // text[2:3] = 天
-			{3, 4}, // text[3:4] = 氣
-			{4, 5}, // text[4:5] = 很
-			{5, 6}, // text[5:6] = 好
-		}
-		got := tk.findDAGPath(text, dag)
-		assertDeepEqual(t, want, got)
-	})
-
-	t.Run("find DAG path: 我昨天去上海交通大學與老師討論量子力學", func(t *testing.T) {
-		text := "我昨天去上海交通大學與老師討論量子力學"
-		dag := map[int][]int{
-			0:  {1},
-			1:  {2, 3}, // 昨 昨天
-			2:  {3},
-			3:  {4},
-			4:  {5, 6}, // 上 上海
-			5:  {6},
-			6:  {7},
-			7:  {8},
-			8:  {9},
-			9:  {10},
-			10: {11},
-			11: {12},
-			12: {13},
-			13: {14},
-			14: {15},
-			15: {16, 17}, // 量 量子
-			16: {17, 18}, // 子 子力
-			17: {18},
-			18: {19},
-		}
-		want := [][2]int{
-			{0, 1},
-			{1, 3}, // 昨天
-			{3, 4},
-			{4, 6}, // 上海
-			{6, 7},
-			{7, 8},
-			{8, 9},
-			{9, 10},
-			{10, 11},
-			{11, 12},
-			{12, 13},
-			{13, 14},
-			{14, 15},
-			{15, 17}, // 量子
-			{17, 18},
-			{18, 19},
-		}
-		got := tk.findDAGPath(text, dag)
-		assertDeepEqual(t, want, got)
-	})
-}
-
 func TestMaxIndexProba(t *testing.T) {
-	tk := Tokenizer{}
 	cases := []struct {
 		candidates []tailProba
 		wantIdx    int
@@ -238,15 +168,14 @@ func TestMaxIndexProba(t *testing.T) {
 	}
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			got := tk.maxIndexProba(c.candidates)
+			got := maxIndexProba(c.candidates)
 			assertEqual(t, c.wantIdx, got.index)
 			assertEqual(t, c.wantProba, got.proba)
 		})
 	}
 }
 
-func TestFindBestPath(t *testing.T) {
-	tk := Tokenizer{}
+func TestFindDagPath(t *testing.T) {
 	cases := []struct {
 		text     string
 		dagProba map[int][]tailProba
@@ -334,7 +263,7 @@ func TestFindBestPath(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
-			got := tk.findBestPath(c.text, c.dagProba)
+			got := findDagPath(c.text, c.dagProba)
 			assertDeepEqual(t, c.want, got)
 		})
 	}
@@ -344,39 +273,15 @@ func TestCutDag(t *testing.T) {
 	tk := NewJiebaTokenizer()
 	t.Run("cut dag 1", func(t *testing.T) {
 		text := "今天天氣很好"
-		dPath := [][2]int{
-			{0, 2},
-			{2, 3},
-			{3, 4},
-			{4, 5},
-			{5, 6},
-		}
 		want := []string{"今天", "天", "氣", "很", "好"}
-		got := tk.cutDAG(text, dPath)
+		got := tk.cutDAG(text)
 		assertDeepEqual(t, want, got)
 	})
 
 	t.Run("cut dag 2", func(t *testing.T) {
 		text := "我昨天去上海交通大學與老師討論量子力學"
 		want := []string{"我", "昨天", "去", "上海", "交通", "大", "學", "與", "老", "師", "討", "論", "量子", "力", "學"}
-		dPath := [][2]int{
-			{0, 1},
-			{1, 3}, // 昨天
-			{3, 4},
-			{4, 6}, // 上海
-			{6, 8}, // 交通
-			{8, 9},
-			{9, 10},
-			{10, 11},
-			{11, 12},
-			{12, 13},
-			{13, 14},
-			{14, 15},
-			{15, 17}, // 量子
-			{17, 18},
-			{18, 19},
-		}
-		got := tk.cutDAG(text, dPath)
+		got := tk.cutDAG(text)
 		assertDeepEqual(t, want, got)
 	})
 }
@@ -629,48 +534,16 @@ func BenchmarkCut(b *testing.B) {
 
 // 4,4289 ns/op
 func BenchmarkBuildDag(b *testing.B) {
-	tk := NewJiebaTokenizer()
+	pd := newJiebaPrefixDictionary()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.buildDAG("我昨天去上海交通大學與老師討論量子力學")
-	}
-}
-
-// 9,598 ns/op
-func BenchmarkFindDAGPath(b *testing.B) {
-	tk := NewJiebaTokenizer()
-	dag := map[int][]int{
-		0:  {1},
-		1:  {2, 3}, // 昨 昨天
-		2:  {3},
-		3:  {4},
-		4:  {5, 6}, // 上 上海
-		5:  {6},
-		6:  {7},
-		7:  {8},
-		8:  {9},
-		9:  {10},
-		10: {11},
-		11: {12},
-		12: {13},
-		13: {14},
-		14: {15},
-		15: {16, 17}, // 量 量子
-		16: {17, 18}, // 子 子力
-		17: {18},
-		18: {19},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		tk.findDAGPath("我昨天去上海交通大學與老師討論量子力學", dag)
+		pd.buildDag("我昨天去上海交通大學與老師討論量子力學")
 	}
 }
 
 // 1,140 ns/op
-func BenchmarkFindBestPath(b *testing.B) {
-	tk := Tokenizer{}
+func BenchmarkFindDagPath(b *testing.B) {
 	dagProba := map[int][]tailProba{
 		18: {{19, 1.1}},
 		17: {{18, 1.1}},
@@ -695,35 +568,17 @@ func BenchmarkFindBestPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.findBestPath("我昨天去上海交通大學與老師討論量子力學", dagProba)
+		findDagPath("我昨天去上海交通大學與老師討論量子力學", dagProba)
 	}
 }
 
 // 1,039 ns/op
 func BenchmarkCutDag(b *testing.B) {
 	tk := NewJiebaTokenizer()
-	dag := [][2]int{
-		{0, 1},
-		{1, 3}, // 昨天
-		{3, 4},
-		{4, 6}, // 上海
-		{6, 7},
-		{7, 8},
-		{8, 9},
-		{9, 10},
-		{10, 11},
-		{11, 12},
-		{12, 13},
-		{13, 14},
-		{14, 15},
-		{15, 17}, // 量子
-		{17, 18},
-		{18, 19},
-	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tk.cutDAG("我昨天去上海交通大學與老師討論量子力學", dag)
+		tk.cutDAG("我昨天去上海交通大學與老師討論量子力學")
 	}
 }
 
@@ -750,15 +605,14 @@ goos: linux
 goarch: amd64
 pkg: github.com/ericlingit/jieba-go
 cpu: Intel(R) Core(TM) i5-9400 CPU @ 2.90GHz
-BenchmarkCutBigTextParallel-6                 13          89511086 ns/op        161128611 B/op   1798660 allocs/op
-BenchmarkCutBigText-6                          4         302533994 ns/op        119893410 B/op   1798657 allocs/op
-BenchmarkCut-6                             37684             31373 ns/op           16121 B/op        210 allocs/op
-BenchmarkBuildDag-6                       296812              4237 ns/op            2472 B/op         32 allocs/op
-BenchmarkFindDAGPath-6                    264108              4587 ns/op            2161 B/op         30 allocs/op
-BenchmarkFindBestPath-6                  2345866               501.9 ns/op           496 B/op          5 allocs/op
-BenchmarkCutDag-6                        1000000              1035 ns/op             624 B/op         21 allocs/op
-BenchmarkViterbi-6                         22934             50580 ns/op           43766 B/op        220 allocs/op
-BenchmarkBuildPrefDict-6                      13          85710548 ns/op        37479299 B/op     699994 allocs/op
+BenchmarkCutBigTextParallel-6                 13          92336455 ns/op        161114627 B/op   1798648 allocs/op
+BenchmarkCutBigText-6                          4         290079030 ns/op        119873116 B/op   1798648 allocs/op
+BenchmarkCut-6                             37669             30726 ns/op           16126 B/op        210 allocs/op
+BenchmarkBuildDag-6                       284446              4225 ns/op            2472 B/op         32 allocs/op
+BenchmarkFindDagPath-6                   2408601               499.4 ns/op           496 B/op          5 allocs/op
+BenchmarkCutDag-6                         102067             10517 ns/op            5282 B/op         83 allocs/op
+BenchmarkViterbi-6                         23612             51054 ns/op           43766 B/op        220 allocs/op
+BenchmarkBuildPrefDict-6                      13          88681290 ns/op        37478664 B/op     699991 allocs/op
 */
 
 func assertDeepEqual(t *testing.T, want, got interface{}) {

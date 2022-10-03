@@ -216,12 +216,10 @@ func (tk *Tokenizer) cutBlock(block textBlock, hmm bool) []string {
 	return tk.cutNonZh(block.text)
 }
 
-// cutZh `text` using a prefix dictionary, and optionally use a
-// Hidden Markov model to identify and segment unknown words.
+// cutZh `text` using a prefix dictionary, and a Hidden Markov
+// model to identify and segment words.
 func (tk *Tokenizer) cutZh(text string, hmm bool) []string {
-	dag := tk.buildDAG(text)
-	dagPath := tk.findDAGPath(text, dag)
-	dagPieces := tk.cutDAG(text, dagPath)
+	dagPieces := tk.cutDAG(text)
 	if !hmm {
 		return dagPieces
 	}
@@ -256,130 +254,12 @@ func (tk *Tokenizer) cutZh(text string, hmm bool) []string {
 	return words
 }
 
-// Build a DAG out of every rune:rune+N piece from text string.
-// The returned DAG's index values are based on []rune(text).
-func (tk *Tokenizer) buildDAG(text string) map[int][]int {
-	// Get the index of RUNES that are found in the prefix
-	// dictionary. If not found, save the rune slice as is.
-	textRunes := []rune(text)
-	pieces := [][2]int{}
-	for i, iRune := range textRunes {
-		count, found := tk.pd.termFreq[string(iRune)]
-		if !found || count == 0 {
-			pieces = append(pieces, [2]int{i, i + 1})
-			continue
-		}
-		for j := range textRunes[i:] {
-			part := textRunes[i : j+1+i]
-			val, found := tk.pd.termFreq[string(part)]
-			if !found {
-				break
-			}
-			if val > 0 {
-				pieces = append(pieces, [2]int{i, j + 1 + i})
-			}
-		}
-	}
-	// fmt.Println("pieces:", pieces)
-
-	dag := make(map[int][]int, len(textRunes))
-	for _, p := range pieces {
-		val, found := dag[p[0]]
-		if !found {
-			dag[p[0]] = []int{p[1]}
-		} else {
-			dag[p[0]] = append(val, p[1])
-		}
-	}
-	// fmt.Println("dag:", dag)
-	tk.dag = dag
-	return dag
-}
-
-// Calculate the log probability of each DAG path (piece),
-// and return the best path for each rune in `text`.
-// The return value's index are based on []rune(text).
-func (tk *Tokenizer) findDAGPath(text string, dag map[int][]int) [][2]int {
-	total := math.Log(float64(tk.pd.size))
-	textRunes := []rune(text)
-	dagProba := make(map[int][]tailProba, len(textRunes))
-
-	// Iterate through `textRunes` in reverse.
-	for i := len(textRunes) - 1; i >= 0; i-- {
-		// fmt.Printf("%q\n", string(textRunes[i]))
-		dagProba[i] = []tailProba{}
-		for _, j := range dag[i] {
-			// Calculate current piece's probability.
-			// piece_frequency = log(prefix_dictionary.get(piece) or 1.0) - total
-			// piece_proba = piece_frequency + next_piece_proba
-			tf := 1.0
-			if val, found := tk.pd.termFreq[string(textRunes[i:j])]; found {
-				tf = float64(val)
-			}
-			pieceFreq := math.Log(tf) - total
-
-			// Get next piece's probability.
-			nextPiece := []tailProba{{j, 0.0}}
-			if val, found := dagProba[j]; found {
-				nextPiece = val
-			}
-			// There could be more than 1 nextPiece, use the one
-			// with the highest log probability.
-			nextBestPiece := tk.maxIndexProba(nextPiece)
-			pieceProba := pieceFreq + nextBestPiece.proba
-			dagProba[i] = append(dagProba[i], tailProba{j, pieceProba})
-			// fmt.Printf(
-			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sProba dagProba[%d][%d])\n",
-			// 	string(textRunes[i:j]),
-			// 	i,
-			// 	j,
-			// 	pieceProba,
-			// 	pieceFreq,
-			// 	string(textRunes[i:j]),
-			// 	nextBestPiece.Proba,
-			// 	string(textRunes[j:x]),
-			// 	j,
-			// 	x,
-			// )
-		}
-	}
-	tk.dagProba = dagProba
-	// Keep paths with the highest log probability.
-	return tk.findBestPath(text, dagProba)
-}
-
-// Return the map key whose float value is the highest.
-func (tk *Tokenizer) maxIndexProba(items []tailProba) tailProba {
-	prev := tailProba{-1, minFloat}
-	best := tailProba{-1, minFloat}
-	for _, item := range items {
-		if item.proba >= prev.proba {
-			best = item
-		}
-		prev = item
-	}
-	if best.index == -1 {
-		return prev
-	}
-	return best
-}
-
-// Find the path with the highest probability.
-// This is a helper method for findDAGPath().
-func (tk *Tokenizer) findBestPath(text string, dagProba map[int][]tailProba) [][2]int {
-	textRunes := []rune(text)
-
-	bestPath := [][2]int{}
-	for i := 0; i < len(textRunes) && i >= 0; {
-		tail := tk.maxIndexProba(dagProba[i])
-		bestPath = append(bestPath, [2]int{i, tail.index})
-		i = tail.index
-	}
-	return bestPath
-}
-
 // Cut `text` using a DAG path built from a prefix dictionary.
-func (tk *Tokenizer) cutDAG(text string, dagPath [][2]int) []string {
+func (tk *Tokenizer) cutDAG(text string) []string {
+	dag := tk.pd.buildDag(text)
+	dagProba := tk.pd.calcDagProba(text, dag)
+	dagPath := findDagPath(text, dagProba)
+
 	textRune := []rune(text)
 	pieces := []string{}
 	for _, dagIndex := range dagPath {
@@ -577,6 +457,126 @@ func newJiebaPrefixDictionary() *prefixDictionary {
 	return &pd
 }
 
+// Build a DAG out of every rune:rune+N piece from text string.
+// The returned DAG's index values are based on []rune(text).
+func (pd *prefixDictionary) buildDag(text string) map[int][]int {
+	// Get the index of RUNES that are found in the prefix
+	// dictionary. If not found, save the rune slice as is.
+	textRunes := []rune(text)
+	pieces := [][2]int{}
+	for i, iRune := range textRunes {
+		count, found := pd.termFreq[string(iRune)]
+		if !found || count == 0 {
+			pieces = append(pieces, [2]int{i, i + 1})
+			continue
+		}
+		for j := range textRunes[i:] {
+			part := textRunes[i : j+1+i]
+			val, found := pd.termFreq[string(part)]
+			if !found {
+				break
+			}
+			if val > 0 {
+				pieces = append(pieces, [2]int{i, j + 1 + i})
+			}
+		}
+	}
+	// fmt.Println("pieces:", pieces)
+
+	dag := make(map[int][]int, len(textRunes))
+	for _, p := range pieces {
+		val, found := dag[p[0]]
+		if !found {
+			dag[p[0]] = []int{p[1]}
+		} else {
+			dag[p[0]] = append(val, p[1])
+		}
+	}
+	// fmt.Println("dag:", d)
+	return dag
+}
+
+// Calculate the log probability of each DAG path (piece),
+// and return the best path for each rune in `text`.
+// The return value's index are based on []rune(text).
+func (pd *prefixDictionary) calcDagProba(text string, dag map[int][]int) map[int][]tailProba {
+	total := math.Log(float64(pd.size))
+	textRunes := []rune(text)
+	dagProba := make(map[int][]tailProba, len(textRunes))
+
+	// Iterate through `textRunes` in reverse.
+	for i := len(textRunes) - 1; i >= 0; i-- {
+		// fmt.Printf("%q\n", string(textRunes[i]))
+		dagProba[i] = []tailProba{}
+		for _, j := range dag[i] {
+			// Calculate current piece's probability.
+			// piece_frequency = log(prefix_dictionary.get(piece) or 1.0) - total
+			// piece_proba = piece_frequency + next_piece_proba
+			tf := 1.0
+			if val, found := pd.termFreq[string(textRunes[i:j])]; found {
+				tf = float64(val)
+			}
+			pieceFreq := math.Log(tf) - total
+
+			// Get next piece's probability.
+			nextPiece := []tailProba{{j, 0.0}}
+			if val, found := dagProba[j]; found {
+				nextPiece = val
+			}
+			// There could be more than 1 nextPiece, use the one
+			// with the highest log probability.
+			nextBestPiece := maxIndexProba(nextPiece)
+			pieceProba := pieceFreq + nextBestPiece.proba
+			dagProba[i] = append(dagProba[i], tailProba{j, pieceProba})
+			// fmt.Printf(
+			// 	"  %q dagProba[%d][%d] = %f (%f %sFreq  + %f %sProba dagProba[%d][%d])\n",
+			// 	string(textRunes[i:j]),
+			// 	i,
+			// 	j,
+			// 	pieceProba,
+			// 	pieceFreq,
+			// 	string(textRunes[i:j]),
+			// 	nextBestPiece.Proba,
+			// 	string(textRunes[j:x]),
+			// 	j,
+			// 	x,
+			// )
+		}
+	}
+	// Keep paths with the highest log probability.
+	return dagProba
+}
+
+// Find the path with the highest probability.
+// This is a helper method for calcDagProba().
+func findDagPath(text string, dagProba map[int][]tailProba) [][2]int {
+	textRunes := []rune(text)
+
+	bestPath := [][2]int{}
+	for i := 0; i < len(textRunes) && i >= 0; {
+		tail := maxIndexProba(dagProba[i])
+		bestPath = append(bestPath, [2]int{i, tail.index})
+		i = tail.index
+	}
+	return bestPath
+}
+
+// Return the item whose proba is the highest.
+func maxIndexProba(items []tailProba) tailProba {
+	prev := tailProba{-1, minFloat}
+	best := tailProba{-1, minFloat}
+	for _, item := range items {
+		if item.proba >= prev.proba {
+			best = item
+		}
+		prev = item
+	}
+	if best.index == -1 {
+		return prev
+	}
+	return best
+}
+
 func (pd *prefixDictionary) addTerm(term string, freq int) {
 	pd.lock.Lock()
 	defer pd.lock.Unlock()
@@ -612,12 +612,6 @@ func (pd *prefixDictionary) suggestFreq(term string, tk *Tokenizer) int {
 	}
 	return b
 }
-
-/*
-buildDag(string) map[int][]int (dag)
-findDagPath(string, dag) [][2]int (path)
-
-*/
 
 type hiddenMarkovModel struct {
 	startP map[string]float64
