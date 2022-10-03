@@ -443,7 +443,6 @@ func (tk *Tokenizer) initialize() {
 		for scanner.Scan() {
 			lines = append(lines, scanner.Text())
 		}
-		reader.Close()
 
 		// Build a prefix dictionary from lines collected during the above step.
 		pdErr := tk.buildPrefixDictionary(lines)
@@ -568,6 +567,97 @@ func (tk *Tokenizer) suggestFreq(word string) int {
 	}
 	return b
 }
+
+type prefixDictionary struct {
+	termFreq map[string]int
+	size     int
+	ready    bool
+	lock     sync.RWMutex
+	source   string
+}
+
+/*
+TODO Methods:
+	addTerm()
+	suggestFreq()
+*/
+
+func newPrefixDictionaryFromFile(filename string) *prefixDictionary {
+	pd := prefixDictionary{}
+	pd.lock.Lock()
+	defer pd.lock.Unlock()
+
+	pd.source = filename
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// From file size, calculate how much map space to pre-allocate.
+	// Each line takes, on average, 14.5 bytes.
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	pd.termFreq = make(map[string]int, fileInfo.Size()/14)
+	// Scan and parse line by line.
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, " ", 3)
+		word := parts[0]
+		count, err := strconv.Atoi(parts[1])
+		if err != nil {
+			log.Fatal(err)
+		}
+		// Source file may contain duplicates.
+		_, found := pd.termFreq[word]
+		if !found {
+			pd.termFreq[word] = count
+			pd.size += count
+		}
+		// // Add word fragments.
+		// wordR := []rune(word)
+		// piece := ""
+		// for _, char := range wordR[:len(wordR)-1] {
+		// 	piece += string(char)
+		// 	_, found := pd.termFreq[piece]
+		// 	if !found {
+		// 		pd.termFreq[piece] = 0
+		// 	}
+		// }
+	}
+	pd.ready = true
+	return &pd
+}
+
+func newJiebaPrefixDictionary() *prefixDictionary {
+	// Load pre-built prefix dictionary from gob file.
+	gobFile, err := os.Open("prefix_dictionary.gob")
+	if err != nil {
+		log.Fatalf("failed to open gob file: %v", err)
+	}
+	defer gobFile.Close()
+
+	pd := prefixDictionary{}
+	pd.lock.Lock()
+	defer pd.lock.Unlock()
+	decoder := gob.NewDecoder(gobFile)
+	if err := decoder.Decode(&pd.termFreq); err != nil {
+		log.Fatalf("failed to decode pfDict from gobFile: %v", err)
+	}
+	pd.size = 60_101_967
+	pd.ready = true
+	pd.source = "prefix_dictionary.gob"
+	return &pd
+}
+
+/*
+buildDag(string) map[int][]int (dag)
+findDagPath(string, dag) [][2]int (path)
+
+*/
 
 type hiddenMarkovModel struct {
 	startP map[string]float64
