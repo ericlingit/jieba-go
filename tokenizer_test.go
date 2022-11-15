@@ -592,7 +592,7 @@ func BenchmarkViterbi(b *testing.B) {
 	}
 }
 
-//  ns/op
+// 88,681,290 ns/op
 func BenchmarkBuildPrefDict(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		newPrefixDictionaryFromFile("dict.txt")
